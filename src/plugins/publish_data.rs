@@ -1,35 +1,80 @@
 use std::thread;
 use std::time::{Duration, SystemTime};
 use zmq;
-use crate::plugins::{defs, defs::DataSource, source_dummy_data};
-use crate::plugins::defs::NUM_SAMPLES;
+use crate::plugins::defs::*;
+use crate::plugins::defs::NetType;
 use crate::plugins::source_dummy_data::NormalData;
 
-static DATA_ADDRESS: &str = "tcp://*:5555";
-static CONTROL_ADDRESS: &str = "tcp://*:5556";
 
 pub struct Server {
     context: zmq::Context,
-    data_socket: zmq::Socket,
+    socket: zmq::Socket,
 }
-impl Server {
-    pub(crate) fn new() -> Server {
+
+pub trait DummyPubServer {
+    fn new(ip:&str) -> Self;
+    fn broadcast_loop(&mut self);
+}
+
+pub trait Subscriber {
+    fn new(ip:&str) -> Self;
+    fn subscribe_check(&mut self) -> ComPacketFloat;
+}
+
+impl DummyPubServer for Server {
+    fn new(ip:&str) -> Server{
         let context = zmq::Context::new();
-        let data_socket = context.socket(zmq::PUB).unwrap();
-        assert!(data_socket.bind(DATA_ADDRESS).is_ok());
-        Server {
-            context,
-            data_socket,
+        let socket = context.socket(zmq::PUB).unwrap();
+        socket.bind(ip).expect("Could not bind socket.");
+        return Server{context, socket};
+    }
+
+    fn broadcast_loop(&mut self){
+        let mut packet: ComPacketFloat = ComPacketFloat {
+            id: Identity{
+                net_type: NetType::Server,
+                version: VERSION.to_string(),
+            },
+            time: SystemTime::now(),
+            state: State{
+                range: 0,
+                rotation_speed: 0.0,
+                blanking: Blanking{
+                    x:0,
+                    y:0,
+                },
+                attenuation:0.0,
+                tune:0.0,
+            },
+            data: Vec::new(),
+        };
+        let mut s:String;
+        loop {
+            packet.data = NormalData::source().to_vec();
+            s = serde_json::to_string(&packet).expect("Failed to serialize packet");
+            self.socket.send(&s,0).expect("Failed to send packet");
+
+            println!("Sent packet: \n{}",s);
+            thread::sleep(Duration::from_millis(1000));
         }
     }
-    pub(crate) fn run(&mut self){
+}
+
+impl Subscriber for Server {
+    fn new(ip:&str) -> Server{
+        let context = zmq::Context::new();
+        let socket = context.socket(zmq::SUB).unwrap();
+        socket.connect(ip).expect("Failed to connect to socket");
+        socket.set_subscribe(b"").expect("Failed to subscribe socket");
+        println!("Subscribe complete");
+        Server{context, socket}
+    }
+    fn subscribe_check(&mut self) -> ComPacketFloat{
         loop {
-            let random_numbers = NormalData::source().to_vec();
-            let serialized: Vec<u8> = serde_pickle::to_vec(&random_numbers, Default::default())
-                .expect("Serialization failed");
-            self.data_socket.send(serialized.as_slice(), 0).expect("Sending failed");
-            println!("Sent data");
-            thread::sleep(Duration::from_millis(1000));
+            let message = self.socket.recv_msg(0).unwrap();
+            let s = message.as_str().unwrap();
+            let packet = serde_json::from_str::<ComPacketFloat>(s).unwrap();
+            return packet;
         }
     }
 }
