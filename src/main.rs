@@ -1,8 +1,10 @@
 use std::env;
+use std::time::SystemTime;
+use hdf5_metno::{File, Result};
 use crate::plugins::publish_data::{DummyPubServer, Server, Subscriber};
 
 mod plugins;
-use crate::plugins::defs::NetType;
+use crate::plugins::defs::{Hdf5Object, NetType};
 
 static DATA_ADDRESS: &str = "tcp://*:5556";
 static CONTROL_ADDRESS: &str = "tcp://*:5555";
@@ -25,9 +27,12 @@ fn main() {
 
     if args.contains(&String::from("--archive")) || args.contains(&String::from("-a")) {
         let mut subscription: Server = plugins::publish_data::Subscriber::new(SUBSCRIPTION_ADDRESS);
+        let file = File::open_rw("radar_archive.h5").or_else(|_| File::create("radar_archive.h5"))
+            .expect("Unable to open radar_archive.h5 file");
         loop {
             let packet = subscription.subscribe_check();
             println!("Subscription received: \n{}",serde_json::to_string(&packet).unwrap());
+            packet.to_hdf5(&file).expect("Unable to write to file");
             //ToDo: Write to file
             //ToDo: Send to all clients
 
