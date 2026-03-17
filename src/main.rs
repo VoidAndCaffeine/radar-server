@@ -4,7 +4,7 @@ use hdf5_metno::{File, Result};
 use crate::plugins::publish_data::{DummyPubServer, Server, Subscriber};
 
 mod plugins;
-use crate::plugins::defs::{Hdf5Object, NetType};
+use crate::plugins::defs::{Hdf5Object};
 
 static DATA_ADDRESS: &str = "tcp://*:5556";
 static CONTROL_ADDRESS: &str = "tcp://*:5555";
@@ -15,7 +15,7 @@ fn main() {
 
     if args.contains(&String::from("--server")) || args.contains(&String::from("-s")) {
         println!("Server mode is not yet implemented.");
-        return;
+        todo!();
     }
 
     if args.contains(&String::from("--dummy")) || args.contains(&String::from("-d")) {
@@ -33,16 +33,13 @@ fn main() {
             let packet = subscription.subscribe_check();
             println!("Subscription received: \n{}",serde_json::to_string(&packet).unwrap());
             packet.to_hdf5(&file).expect("Unable to write to file");
-            //ToDo: Write to file
             //ToDo: Send to all clients
-
         }
-        return;
     }
 
     if args.contains(&String::from("--transform")) || args.contains(&String::from("-t")) {
         println!("Transformer mode is not yet implemented.");
-        return;
+        todo!();
     }
 
     println!("Only one of the following args is required: \n\n\

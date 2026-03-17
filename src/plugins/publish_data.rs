@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use zmq;
 use crate::plugins::defs::*;
 use crate::plugins::defs::NetType;
-use crate::plugins::source_dummy_data::NormalData;
+use crate::plugins::source_data::DummyNormalData;
 
 
 pub struct Server {
@@ -50,7 +50,7 @@ impl DummyPubServer for Server {
         };
         let mut s:String;
         loop {
-            packet.data = NormalData::source().to_vec();
+            packet.data = DummyNormalData::source().to_vec();
             s = serde_json::to_string(&packet).expect("Failed to serialize packet");
             self.socket.send(&s,0).expect("Failed to send packet");
 

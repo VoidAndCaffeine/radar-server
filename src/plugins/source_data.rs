@@ -2,8 +2,8 @@ use crate::plugins::defs::DataSource;
 use rand::distr::Distribution;
 use rand_distr::Normal;
 
-pub struct NormalData;
-impl DataSource for NormalData {
+pub struct DummyNormalData;
+impl DataSource for DummyNormalData {
     fn source() -> [f64; crate::plugins::defs::NUM_SAMPLES] {
         let mut retarry = [0.0; crate::plugins::defs::NUM_SAMPLES];
         let mut rng = rand::rng();

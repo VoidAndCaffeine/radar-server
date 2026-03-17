@@ -1,10 +1,7 @@
-use std::any::Any;
 use std::string::ToString;
 use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
-use hdf5_metno::{File, Group, H5Type, Result};
-use chrono::{DateTime, Utc};
-use log::error;
+use hdf5_metno::{File, Group, H5Type};
 
 pub static NUM_SAMPLES:usize = 1000;
 pub trait DataSource {
@@ -90,7 +87,7 @@ impl Hdf5Object for ComPacketFloat {
             .shape(self.data.len())
             .create("Data")?;
         data_ds.write(&self.data)?;
-
+        file.flush()?;
         Ok(())
     }
     
