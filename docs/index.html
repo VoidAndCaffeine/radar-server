@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Radar Server"><title>radar_server - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="radar_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate radar_server</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../radar_server/index.html">radar_<wbr>server</a><span class="version">0.0.3</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#radar-server" title="Radar Server">Radar Server</a><ul><li><a href="#goals" title="Goals:">Goals:</a></li><li><a href="#current-todos" title="Current ToDos">Current ToDos</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#statics" title="Statics">Statics</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>radar_<wbr>server</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/radar_server/main.rs.html#1-135">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="radar-server"><a class="doc-anchor" href="#radar-server">§</a>Radar Server</h2>
+<p>The one binary to rule them all for all things related to Professor John Mower’s radar system.</p>
+<h3 id="goals"><a class="doc-anchor" href="#goals">§</a>Goals:</h3><h4 id="when-running-as-a-server"><a class="doc-anchor" href="#when-running-as-a-server">§</a>When running as a Server:</h4>
+<ul>
+<li>Source radar data from the radar hardware in such a way that adding support for new radar systems is easy.</li>
+<li>Source simulated radar data from a random function.</li>
+<li>Send radar data to clients through a ZMQ Publisher Subscriber connection.</li>
+<li>Listen as a ZMQ router, and adjust radar control commands from authorized clients.</li>
+</ul>
+<h4 id="when-running-as-an-archiver"><a class="doc-anchor" href="#when-running-as-an-archiver">§</a>When running as an Archiver:</h4>
+<ul>
+<li>Subscribe to a Server’s published data.</li>
+<li>Archive that data in an HDF5 file.</li>
+<li>Send live data to the appropriate clients as a ZMQ router.</li>
+<li>Listen as a ZMQ router for requests for archived data.</li>
+<li>Respond as a ZMQ router with archived data.</li>
+<li>Listen as a ZMQ router and forward server commands as a dealer.</li>
+</ul>
+<h4 id="when-running-as-a-transformer"><a class="doc-anchor" href="#when-running-as-a-transformer">§</a>When running as a Transformer:</h4>
+<ul>
+<li>Receive live or archived data from the Archiver as a ZMQ dealer.</li>
+<li>Listen as a ZMQ router and forward server commands as a dealer.</li>
+<li>Listen as a ZMQ router client requests.</li>
+<li>Request the appropriate live or historical data from the archiver.</li>
+<li>Transform the data if requested.</li>
+<li>Send the potentially transformed, live or historical data to the client as a router.</li>
+</ul>
+<h3 id="current-todos"><a class="doc-anchor" href="#current-todos">§</a>Current ToDos</h3>
+<ul>
+<li>Check if the Subscriber trait implementation actually needs to be a loop. (It probably doesn’t)</li>
+<li>Missing ZMQ Router Implementation.</li>
+<li>Send live packets as Archiver. (Blocked by Missing ZMQ Router Implementation)</li>
+<li>Archiver is not Multithreaded.</li>
+<li>Send Archived packets as Archiver. (Blocked by Missing ZMQ Router Implementation and Archiver is not Multithreaded)</li>
+<li>Figure out what the transformer actually does.</li>
+<li>Implement Transform mode. (Blocked by Figure out what the transformer actually does)</li>
+<li>Add <code>NUMSAMPLES</code> to the network spec</li>
+<li>Move <code>NUMSAMPLES</code> in source_data into one of the radar_packet structs. (Blocked by Add <code>NUMSAMPLES</code> to the network spec)</li>
+<li>Acquire hardware/hardware simulation</li>
+<li>Source Real Server data. (Blocked by Acquire hardware/hardware simulation)</li>
+<li>Finalize Radar Blanking Values. (Blocked by Acquire hardware/hardware simulation)</li>
+<li>Implement Radar Control. (Blocked by Finalize Radar Blanking Values)</li>
+<li>Finalize radar control security. (Blocked by Implement Radar Control)</li>
+<li>Add cryptography data to radar_packet (Blocked by Finalize radar control security)</li>
+<li>Implement radar control (Blocked by Add cryptography data to radar packet)</li>
+<li>Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="plugins/index.html" title="mod radar_server::plugins">plugins</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The plugins module contains all logic and datastructure submodules</dd></dl><h2 id="statics" class="section-header">Statics<a href="#statics" class="anchor">§</a></h2><dl class="item-table"><dt><a class="static" href="static.CONTROL_ADDRESS.html" title="static radar_server::CONTROL_ADDRESS">CONTROL_<wbr>ADDRESS</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The UNUSED address to which all control data is sent and received, tcp://*:5555</dd><dt><a class="static" href="static.DATA_ADDRESS.html" title="static radar_server::DATA_ADDRESS">DATA_<wbr>ADDRESS</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The address to which all radar data is sent, tcp://*:5556</dd><dt><a class="static" href="static.SUBSCRIPTION_ADDRESS.html" title="static radar_server::SUBSCRIPTION_ADDRESS">SUBSCRIPTION_<wbr>ADDRESS</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The address to which all archiver data is received, tcp://localhost:5556</dd><dt><a class="static" href="static.TRANSFORMER_ADDRESS.html" title="static radar_server::TRANSFORMER_ADDRESS">TRANSFORMER_<wbr>ADDRESS</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The UNUSED address on which the archiver and transformer communicate, tcp://localhost:5557</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.main.html" title="fn radar_server::main">main</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Main handles argument parsing and calling the necessary submodules.</dd></dl></section></div></main></body></html>
