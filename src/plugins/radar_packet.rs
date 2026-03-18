@@ -3,18 +3,24 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use hdf5_metno::{File, Group, H5Type};
 
-pub static NUM_SAMPLES:usize = 1000;
-pub trait DataSource {
-    fn source() -> [f64; NUM_SAMPLES];
-}
-
+/// An Hdf5Object can be stored and retrieved from an HDF5 file.
 pub trait Hdf5Object{
+    /// Stores the object in the specified file.
+    ///
+    /// The object is stored in a group corresponding to its epoch time,
+    /// and a subgroup corresponding to its subsecond millisecond time.
     fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()>;
+
+    /// Retrieves an object from the specified file and group.
+    ///
+    /// Only retrieves an object from a group or fails, does not search for a specific object.
     fn from_hdf5(group: &Group, time: SystemTime) -> hdf5_metno::Result<Self> where Self: Sized;
 }
 
+/// Server binary version sourced from cargo at compile time.
 pub static VERSION:&str = env!("CARGO_PKG_VERSION");
 
+/// Network type for the packet, currently unused.
 #[derive(Serialize,Deserialize,Debug)]
 pub enum NetType {
     Server,
@@ -23,16 +29,25 @@ pub enum NetType {
     Transformer,
 }
 
+/// Identity info contains the network type and server version.
 #[derive(Serialize,Deserialize,Debug)]
 pub struct Identity {
+    ///
     pub(crate) net_type:NetType,
     pub(crate) version:String,
 }
+
+/// Cryptography Information currently undefined.
+///
+///ToDo: Not Yet Implemented
 #[derive(Serialize,Deserialize,Debug)]
 pub struct CryptInfo {
-   //ToDo Cryptography stuff
+    //ToDo
 }
 
+/// The blanking region, current values are placeholders
+///
+/// ToDo: get proper values
 #[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
 #[repr(C)]
 pub struct Blanking {
@@ -40,6 +55,9 @@ pub struct Blanking {
     pub(crate) y:i64,
 }
 
+/// The state of the radar at the time of recording.
+///
+/// ToDo: NUM_SAMPLES should be stored here probably.
 #[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
 #[repr(C)]
 pub struct State {
@@ -50,7 +68,9 @@ pub struct State {
     pub(crate) tune:f64,
 }
 
-
+/// The radar data packet for use with dummy data.
+///
+/// Contains an identity, time of recording, state, and the data vector.
 #[derive(Serialize,Deserialize,Debug)]
 pub struct ComPacketFloat {
     pub(crate) id:Identity,
@@ -67,6 +87,8 @@ pub struct ComPacketFloat {
 //     pub(crate) data:Vec<i64>
 // }
 //
+
+/// Implementation of HDF5Object for ComPacketFloat.
 impl Hdf5Object for ComPacketFloat {
     fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()> {
         let packet_time = self.time.duration_since(SystemTime::UNIX_EPOCH)

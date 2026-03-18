@@ -1,32 +1,40 @@
 use std::thread;
 use std::time::{Duration, SystemTime};
 use zmq;
-use crate::plugins::defs::*;
-use crate::plugins::defs::NetType;
-use crate::plugins::source_data::DummyNormalData;
+use crate::plugins::radar_packet::*;
+use crate::plugins::radar_packet::NetType;
+use crate::plugins::source_data::{FloatDataSource, DummyNormalData};
 
-
-pub struct Server {
+/// Contains the context and socket for a ZMQ connection
+pub struct Connection {
     context: zmq::Context,
     socket: zmq::Socket,
 }
 
-pub trait DummyPubServer {
+/// A connection that sends dummy data on the specified ip.
+pub trait DummyServer {
+    /// Creates a new Dummy Server.
     fn new(ip:&str) -> Self;
+    /// Sends simulated radar data on a loop.
     fn broadcast_loop(&mut self);
 }
 
+/// A connection that subscribes to the specified ip.
 pub trait Subscriber {
+    /// Creates a new Subscriber.
     fn new(ip:&str) -> Self;
+    /// Checks for new packets on the connection.
+    ///
+    /// ToDo: currently is a loop, but I don't think that's actually necessary.
     fn subscribe_check(&mut self) -> ComPacketFloat;
 }
 
-impl DummyPubServer for Server {
-    fn new(ip:&str) -> Server{
+impl DummyServer for Connection {
+    fn new(ip:&str) -> Connection {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::PUB).unwrap();
         socket.bind(ip).expect("Could not bind socket.");
-        return Server{context, socket};
+        return Connection {context, socket};
     }
 
     fn broadcast_loop(&mut self){
@@ -60,17 +68,18 @@ impl DummyPubServer for Server {
     }
 }
 
-impl Subscriber for Server {
-    fn new(ip:&str) -> Server{
+impl Subscriber for Connection {
+    fn new(ip:&str) -> Connection {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::SUB).unwrap();
         socket.connect(ip).expect("Failed to connect to socket");
         socket.set_subscribe(b"").expect("Failed to subscribe socket");
         println!("Subscribe complete");
-        Server{context, socket}
+        Connection {context, socket}
     }
     fn subscribe_check(&mut self) -> ComPacketFloat{
         loop {
+            //ToDo: see if this loop is actually necessary or if I just forgot to remove it.
             let message = self.socket.recv_msg(0).unwrap();
             let s = message.as_str().unwrap();
             let packet = serde_json::from_str::<ComPacketFloat>(s).unwrap();
