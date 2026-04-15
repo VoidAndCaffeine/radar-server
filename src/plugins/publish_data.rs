@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use zmq;
 use crate::plugins::radar_packet::*;
 use crate::plugins::radar_packet::NetType;
-use crate::plugins::source_data::{FloatDataSource, DummyNormalData};
+use crate::plugins::source_data::{FloatDataSource, DummyData, ComplexDataSource};
 
 /// Contains the context and socket for a ZMQ connection
 pub struct Connection {
@@ -26,7 +26,7 @@ pub trait Subscriber {
     /// Checks for new packets on the connection.
     ///
     /// ToDo: currently is a loop, but I don't think that's actually necessary.
-    fn subscribe_check(&mut self) -> ComPacketFloat;
+    fn subscribe_check(&mut self) -> ComPacketIntComplex;
 }
 
 impl DummyServer for Connection {
@@ -38,7 +38,7 @@ impl DummyServer for Connection {
     }
 
     fn broadcast_loop(&mut self){
-        let mut packet: ComPacketFloat = ComPacketFloat {
+        let mut packet: ComPacketIntComplex = ComPacketIntComplex {
             id: Identity{
                 net_type: NetType::Server,
                 version: VERSION.to_string(),
@@ -58,7 +58,8 @@ impl DummyServer for Connection {
         };
         let mut s:String;
         loop {
-            packet.data = DummyNormalData::source().to_vec();
+            packet.time = SystemTime::now();
+            packet.data = DummyData::source_complex_data().to_vec();
             s = serde_json::to_string(&packet).expect("Failed to serialize packet");
             self.socket.send(&s,0).expect("Failed to send packet");
 
@@ -77,13 +78,9 @@ impl Subscriber for Connection {
         println!("Subscribe complete");
         Connection {context, socket}
     }
-    fn subscribe_check(&mut self) -> ComPacketFloat{
-        loop {
-            //ToDo: see if this loop is actually necessary or if I just forgot to remove it.
-            let message = self.socket.recv_msg(0).unwrap();
-            let s = message.as_str().unwrap();
-            let packet = serde_json::from_str::<ComPacketFloat>(s).unwrap();
-            return packet;
-        }
+    fn subscribe_check(&mut self) -> ComPacketIntComplex{
+        let message = self.socket.recv_msg(0).unwrap();
+        let s = message.as_str().unwrap();
+        serde_json::from_str::<ComPacketIntComplex>(s).unwrap()
     }
 }

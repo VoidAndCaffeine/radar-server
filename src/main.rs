@@ -124,9 +124,9 @@ fn main() {
     }
 
     println!("Only one of the following args is required: \n\n\
-    -h, --help\t\t Print this help message and exit\n\
+    -h, --help\t Print this help message and exit\n\
     -s, --server\t Run in Server mode\n\
-    -d, --dummy\t\t Run in Dummy Server mode\n\
+    -d, --dummy\t Run in Dummy Server mode\n\
     -a, --archive\t Run in Archiver mode\n\
     -t, --transform\t Run in Transformer mode\n");
 
