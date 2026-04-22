@@ -25,7 +25,6 @@ pub trait Subscriber {
     fn new(ip:&str) -> Self;
     /// Checks for new packets on the connection.
     ///
-    /// ToDo: currently is a loop, but I don't think that's actually necessary.
     fn subscribe_check(&mut self) -> ComPacketIntComplex;
 }
 
@@ -34,7 +33,7 @@ impl DummyServer for Connection {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::PUB).unwrap();
         socket.bind(ip).expect("Could not bind socket.");
-        return Connection {context, socket};
+        Connection {context, socket}
     }
 
     fn broadcast_loop(&mut self){
@@ -48,14 +47,19 @@ impl DummyServer for Connection {
                 range: 0,
                 rotation_speed: 0.0,
                 blanking: Blanking{
-                    x:0,
-                    y:0,
+                    start_delay: 0.0,
+                    end_delay: 0.0,
+                    azimuth: 0.0,
+                    elevation: 0,
+                    region_id: 0,
                 },
                 attenuation:0.0,
                 tune:0.0,
             },
             data: Vec::new(),
         };
+        //ToDo: send to clients
+        //println!("{}", serde_json::to_string(&packet.state.get_setting()).expect("Could not serialize settings."));
         let mut s:String;
         loop {
             packet.time = SystemTime::now();

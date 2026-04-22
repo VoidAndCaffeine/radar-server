@@ -1,6 +1,7 @@
 use std::string::ToString;
 use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 use hdf5_metno::{File, Group, H5Type};
 use num_complex::Complex;
 
@@ -16,6 +17,21 @@ pub trait Hdf5Object{
     ///
     /// Only retrieves an object from a group or fails, does not search for a specific object.
     fn from_hdf5(group: &Group, time: SystemTime) -> hdf5_metno::Result<Self> where Self: Sized;
+}
+#[skip_serializing_none]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Setting {
+    name:String,
+    min:Option<i32>,
+    max:Option<i32>,
+    step:Option<i32>,
+    values:Option<Vec<Setting>>,
+}
+pub struct SettingParamaters {
+
+}
+pub trait ExportbleSetting {
+    fn  get_setting(&self) -> Setting;
 }
 
 /// Server binary version sourced from cargo at compile time.
@@ -52,8 +68,60 @@ pub struct CryptInfo {
 #[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
 #[repr(C)]
 pub struct Blanking {
-    pub(crate) x:i64,
-    pub(crate) y:i64,
+    pub(crate) start_delay:f32,
+    pub(crate) end_delay:f32,
+    pub(crate) azimuth:f32,
+    pub(crate) elevation:i32,
+    pub(crate) region_id:i32,
+}
+
+impl ExportbleSetting for Blanking {
+    fn  get_setting(&self) -> Setting {
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Start Delay".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"End Delay".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"Azimuth".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"Elevation".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"Region ID".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: Option::from(1),
+            values: None,
+        });
+
+        Setting{
+            name: "Blanking Region".to_string(),
+            min: None,
+            max: None,
+            step: None,
+            values: Option::from(vals),
+        }
+    }
 }
 
 /// The state of the radar at the time of recording.
@@ -67,6 +135,48 @@ pub struct State {
     pub(crate) blanking: Blanking,
     pub(crate) attenuation:f64,
     pub(crate) tune:f64,
+}
+impl ExportbleSetting for State {
+    fn  get_setting(&self) -> Setting {
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Range".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"Rotation Rate".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push(self.blanking.get_setting());
+        vals.push( Setting{
+            name:"Attenuation".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        vals.push( Setting{
+            name:"Tune".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+
+        Setting{
+            name: "Radar State".to_string(),
+            min: None,
+            max: None,
+            step: None,
+            values: Option::from(vals),
+        }
+    }
 }
 
 /// The radar data packet for use with dummy float data.
