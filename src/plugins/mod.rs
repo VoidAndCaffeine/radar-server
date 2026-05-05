@@ -7,4 +7,4 @@ pub mod radar_packet;
 pub mod publish_data;
 
 /// Sources real, archived, or simulated radar data.
-mod source_data;
+pub mod source_data;

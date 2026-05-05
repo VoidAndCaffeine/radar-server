@@ -45,19 +45,23 @@
 //! - Implement radar control (Blocked by Add cryptography data to radar packet)
 //! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
 use std::env;
+use std::time::SystemTime;
 use hdf5_metno::File;
-use crate::plugins::publish_data::{DummyServer, Connection, Subscriber};
+use crate::plugins::publish_data::*;
 
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
-use crate::plugins::radar_packet::{Hdf5Object};
+use crate::plugins::radar_packet::*;
+use crate::plugins::source_data::*;
 
 ///  The address to which all radar data is sent, tcp://*:5556
 static DATA_ADDRESS: &str = "tcp://*:5556";
-///  The UNUSED address to which all control data is sent and received, tcp://*:5555
-static CONTROL_ADDRESS: &str = "tcp://*:5555";
-///  The address to which all archiver data is received, tcp://localhost:5556
+///  The address on which all radar server data is received, tcp://localhost:5556
 static SUBSCRIPTION_ADDRESS: &str = "tcp://localhost:5556";
+///  The address to which all control data is sent, tcp://*:5555
+static CONTROL_SEND_ADDRESS: &str = "tcp://*:5555";
+///  The address on which all control data is received, tcp://localhost:5555
+static CONTROL_RECEIVE_ADDRESS: &str = "tcp://localhost:5555";
 ///  The UNUSED address on which the archiver and transformer communicate, tcp://localhost:5557
 static TRANSFORMER_ADDRESS: &str = "tcp://localhost:5557";
 
@@ -101,16 +105,55 @@ fn main() {
 
     if args.contains(&String::from("--dummy")) || args.contains(&String::from("-d")) {
         println!("Running Dummy Server mode.");
-        let mut server: Connection = DummyServer::new(DATA_ADDRESS);
-        server.broadcast_loop();
-        return;
+        let mut server: Connection = DummyServer::new_broadcast(DATA_ADDRESS);
+        let mut settings_channel: Connection = SettingsChannel::new_dealer(CONTROL_RECEIVE_ADDRESS, "DummyServer");
+        let mut settings: Option<ComPacketSettings>;
+        let mut packet: ComPacketIntComplex = ComPacketIntComplex {
+            id: Identity{
+                net_type: NetType::Server,
+                version: VERSION.to_string(),
+            },
+            time: SystemTime::now(),
+            state: State{
+                range: 0,
+                rotation_speed: 0.0,
+                blanking: Blanking{
+                    start_delay: 0.0,
+                    end_delay: 0.0,
+                    azimuth: 0.0,
+                    elevation: 0,
+                    region_id: 0,
+                },
+                attenuation:0.0,
+                tune:0.0,
+            },
+            data: Vec::new(),
+        };
+
+        loop {
+            settings =settings_channel.receive_settings();
+            if settings.is_some() && settings.unwrap().state.is_some(){
+                println!("Settings received, no settings implemented");
+                todo!();
+            }
+            packet.time = SystemTime::now();
+            packet.data = DummyData::source_complex_data().to_vec();
+            server.broadcast(&mut packet);
+        }
     }
 
     if args.contains(&String::from("--archive")) || args.contains(&String::from("-a")) {
-        let mut subscription: Connection = Subscriber::new(SUBSCRIPTION_ADDRESS);
+        let mut subscription: Connection = Subscriber::new_subscription(SUBSCRIPTION_ADDRESS);
+        let mut settings_channel: Connection = SettingsChannel::new_dealer(CONTROL_RECEIVE_ADDRESS,"Archiver");
+        let mut settings: Option<ComPacketSettings>;
         let file = File::open_rw("radar_archive.h5").or_else(|_| File::create("radar_archive.h5"))
             .expect("Unable to open radar_archive.h5 file");
         loop {
+            settings =settings_channel.receive_settings();
+            if settings.is_some() && settings.unwrap().time.is_some(){
+                println!("Time received, time seek not implemented.");
+                todo!();
+            }
             let packet = subscription.subscribe_check();
             println!("Subscription received: \n{}",serde_json::to_string(&packet).unwrap());
             packet.to_hdf5(&file).expect("Unable to write to file");

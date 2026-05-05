@@ -201,6 +201,16 @@ pub struct ComPacketIntComplex {
     pub(crate) data:Vec<Complex<i16>>
 }
 
+/// The radar packet for communication over the settings channel.
+///
+/// Contains an identity, optional archived time request, and optional settings state
+#[derive(Serialize,Deserialize,Debug)]
+pub struct ComPacketSettings {
+    pub(crate) id:Identity,
+    pub(crate) time:Option<SystemTime>,
+    pub(crate) state:Option<State>,
+}
+
 /// Implementation of HDF5Object for ComPacketFloat.
 impl Hdf5Object for ComPacketFloat {
     fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()> {
