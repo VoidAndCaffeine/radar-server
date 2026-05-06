@@ -27,11 +27,9 @@ pub struct Setting {
     step:Option<i32>,
     values:Option<Vec<Setting>>,
 }
-pub struct SettingParamaters {
 
-}
 pub trait ExportbleSetting {
-    fn  get_setting(&self) -> Setting;
+    fn get_setting(&self) -> Setting;
 }
 
 /// Server binary version sourced from cargo at compile time.
@@ -52,14 +50,6 @@ pub struct Identity {
     ///
     pub(crate) net_type:NetType,
     pub(crate) version:String,
-}
-
-/// Cryptography Information currently undefined.
-///
-///ToDo: Not Yet Implemented
-#[derive(Serialize,Deserialize,Debug)]
-pub struct CryptInfo {
-    //ToDo
 }
 
 /// The blanking region, current values are placeholders
@@ -201,14 +191,24 @@ pub struct ComPacketIntComplex {
     pub(crate) data:Vec<Complex<i16>>
 }
 
+
+/// A struct to denote a change in the date/time archived playback
+///
+/// A SystemTime value denotes a date to search, while none requests live data
+#[derive(Serialize,Deserialize,Debug)]
+pub struct ArchivedPlayback {
+    pub(crate) time:Option<SystemTime>
+}
+
 /// The radar packet for communication over the settings channel.
 ///
 /// Contains an identity, optional archived time request, and optional settings state
 #[derive(Serialize,Deserialize,Debug)]
 pub struct ComPacketSettings {
     pub(crate) id:Identity,
-    pub(crate) time:Option<SystemTime>,
-    pub(crate) state:Option<State>,
+    pub(crate) first_time:bool,
+    pub(crate) playback:Option<ArchivedPlayback>,
+    pub(crate) setting:Option<Setting>,
 }
 
 /// Implementation of HDF5Object for ComPacketFloat.
@@ -299,3 +299,4 @@ impl Hdf5Object for ComPacketIntComplex {
         Ok(ComPacketIntComplex{id,time,state,data})
     }
 }
+

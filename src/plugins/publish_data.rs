@@ -32,9 +32,16 @@ pub trait Subscriber {
 pub trait SettingsChannel {
     fn new_router(ip:&str) -> Self;
     fn new_dealer(ip:&str,whoami:&str) -> Self;
-    fn request_settings(&mut self, settings: &ComPacketSettings);
+    fn send_settings(&mut self, settings: &ComPacketSettings);
     fn request_date(&mut self, time:SystemTime);
     fn receive_settings(&mut self) -> Option<ComPacketSettings > ;
+}
+
+pub trait TransformerPair {
+    fn bind_pair(ip:&str) -> Self;
+    fn connect_pair(ip:&str) -> Self;
+    fn send(&mut self, packet: &ComPacketIntComplex);
+    fn receive(&mut self) -> ComPacketIntComplex;
 }
 
 impl DummyServer for Connection {
@@ -88,7 +95,7 @@ impl SettingsChannel for Connection {
         socket.connect(ip).expect("Failed to connect to socket");
         Connection {context, socket}
     }
-    fn request_settings(&mut self, settings:&ComPacketSettings) {
+    fn send_settings(&mut self, settings:&ComPacketSettings) {
         self.socket.send(&serde_json::to_string(settings).expect("Failed to serialize settings"), 0)
             .expect("Failed to send packet");
     }
@@ -99,10 +106,11 @@ impl SettingsChannel for Connection {
                 net_type: NetType::Client,
                 version: VERSION.to_string(),
             },
-            time: Option::from(time),
-            state: None,
+            first_time: false,
+            playback: Option::from(ArchivedPlayback {time:Option::from(time)}),
+            setting: None,
         };
-        self.request_settings(&packet);
+        self.send_settings(&packet);
     }
 
     fn receive_settings(&mut self) -> Option<ComPacketSettings>{
@@ -111,5 +119,34 @@ impl SettingsChannel for Connection {
                 self.socket.recv_msg(zmq::DONTWAIT).unwrap().as_str().unwrap()
             ).unwrap())
         } else {None}
+    }
+}
+
+impl TransformerPair for Connection {
+    fn bind_pair(ip: &str) -> Self {
+        let context = zmq::Context::new();
+        let socket = context.socket(zmq::PAIR).unwrap();
+        socket.bind(ip).expect("Failed to bind socket.");
+        Connection {context, socket}
+    }
+
+    fn connect_pair(ip: &str) -> Self {
+        let context = zmq::Context::new();
+        let socket = context.socket(zmq::PAIR).unwrap();
+        socket.connect(ip).expect("Failed to connect to socket.");
+        Connection {context, socket}
+    }
+
+    fn send(&mut self, packet: &ComPacketIntComplex) {
+        self.socket.send(
+            &serde_json::to_string(packet).expect("Failed to serialize packet"),
+            0,
+        ).expect("Failed to send packet");
+    }
+
+    fn receive(&mut self) -> ComPacketIntComplex {
+        let message = self.socket.recv_msg(0).unwrap();
+        let s = message.as_str().unwrap();
+        serde_json::from_str::<ComPacketIntComplex>(s).unwrap()
     }
 }
