@@ -75,8 +75,6 @@ fn main() {
     //!     -s, --server    Run in Server mode\
     //!     -d, --dummy     Run in Dummy Server mode\
     //!     -a, --archive   Run in Archiver mode\
-    //!     -t, --transform Run in Transformer mode\
-    //! currently only Dummy mode and archiver mode do anything.
     //!
     //! ## Server Mode
     //! Sources real radar data and sends it to the DATA_ADDRESS.
@@ -91,11 +89,6 @@ fn main() {
     //! Additionally will send archived data to individual clients on request.
     //!
     //! ToDo: Sending archived data as well as forwarding live data is not yet implemented
-    //!
-    //! ## Transform Mode
-    //! Sources data from an archiver instance of this program, transforms it based on the transformation requested by the client.
-    //!
-    //! ToDo: needs to be implemented
     let args: Vec<String> = env::args().collect();
     
     let default_packet = ComPacketIntComplex {
@@ -202,15 +195,10 @@ fn main() {
         }
     }
 
-    if args.contains(&String::from("--transform")) || args.contains(&String::from("-t")) {
-        println!("Transformer mode is not yet implemented.");
-        todo!();
-    }
-
     println!("Only one of the following args is required: \n\n\
     -h, --help\t Print this help message and exit\n\
     -s, --server\t Run in Server mode\n\
     -d, --dummy\t Run in Dummy Server mode\n\
     -a, --archive\t Run in Archiver mode\n\
-    -t, --transform\t Run in Transformer mode\n");
+    ");
 }
