@@ -19,26 +19,26 @@ pub struct ArchivedData{
     pub(crate) file: File,
 }
 
-/// A struct that functions as a FloatDataSource.
-pub trait FloatDataSource {
-    /// Returns an array of f64s NUM_SAMPLES long
-    fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES];
-}
+// /// A struct that functions as a FloatDataSource.
+// pub trait FloatDataSource {
+//     /// Returns an array of f64s NUM_SAMPLES long
+//     fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES];
+// }
 pub trait ComplexDataSource {
     fn source_complex_data(&mut self) -> Vec<Complex<i16>>;
 }
-
-impl FloatDataSource for DummyData {
-    fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES] {
-        let mut retarry = [0.0; NUM_SAMPLES];
-        let mut rng = rand::rng();
-        let normal = Normal::new(0.0, 1.0).expect("Invalid distribution");
-        for i in 0..NUM_SAMPLES {
-            retarry[i] = normal.sample(&mut rng);
-        }
-        retarry
-    }
-}
+// 
+// impl FloatDataSource for DummyData {
+//     fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES] {
+//         let mut retarry = [0.0; NUM_SAMPLES];
+//         let mut rng = rand::rng();
+//         let normal = Normal::new(0.0, 1.0).expect("Invalid distribution");
+//         for i in 0..NUM_SAMPLES {
+//             retarry[i] = normal.sample(&mut rng);
+//         }
+//         retarry
+//     }
+// }
 
 impl ComplexDataSource for DummyData {
     fn source_complex_data(&mut self) -> Vec<Complex<i16>> {

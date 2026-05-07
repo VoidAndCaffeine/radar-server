@@ -1,10 +1,8 @@
-use std::cmp::PartialEq;
 use std::thread;
 use std::time::{Duration, SystemTime};
 use zmq;
-use zmq::PollItem;
 use crate::plugins::radar_packet::*;
-use crate::plugins::source_data::{FloatDataSource, DummyData, ComplexDataSource};
+use crate::plugins::source_data::*;
 
 /// Contains the context and socket for a ZMQ connection
 pub struct Connection {

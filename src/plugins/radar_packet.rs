@@ -49,18 +49,18 @@ pub struct State {
     pub(crate) attenuation:f64,
     pub(crate) tune:f64,
 }
-
-/// The radar data packet for use with dummy float data.
-///
-/// Contains an identity, time of recording, state, and the data vector.
-#[derive(Serialize,Deserialize,Debug)]
-pub struct ComPacketFloat {
-    pub(crate) id:Identity,
-    pub(crate) time:SystemTime,
-    pub(crate) state:State,
-    pub(crate) data:Vec<f64>
-}
-
+//
+// /// The radar data packet for use with dummy float data.
+// ///
+// /// Contains an identity, time of recording, state, and the data vector.
+// #[derive(Serialize,Deserialize,Debug)]
+// pub struct ComPacketFloat {
+//     pub(crate) id:Identity,
+//     pub(crate) time:SystemTime,
+//     pub(crate) state:State,
+//     pub(crate) data:Vec<f64>
+// }
+//
 /// The radar data packet for use with dummy complex i16 data.
 ///
 /// Contains an identity, time of recording, state, and the data vector.
@@ -210,51 +210,51 @@ impl ExportbleSetting for Blanking {
         }
     }
 }
-
-/// Implementation of HDF5Object for ComPacketFloat.
-impl Hdf5Object for ComPacketFloat {
-    fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()> {
-        let packet_time = self.time.duration_since(SystemTime::UNIX_EPOCH)
-            .expect("Time went backwards");
-        let packet_secs = packet_time.as_secs().to_string();
-        let packet_ns = packet_time.subsec_nanos().to_string();
-        println!("Packet Time: {}\nPacket NSecs: {}", packet_secs, packet_ns);
-
-        let super_group = file.create_group(packet_secs.as_str()).expect("Unable to create group");
-        let group = super_group.create_group(packet_ns.as_str())?;
-
-        let s = serde_json::to_string(&self.id).expect("Unable to serialize to json");
-        let attr = group.new_attr::<u8>().shape(s.len()).create("Identity")?;
-        attr.write(s.as_bytes())?;
-        println!("Wrote Identity");
-        let attr = group.new_attr::<State>().create("State")?;
-        attr.write_scalar(&self.state)?;
-        println!("Wrote State");
-
-        let data_ds = group.new_dataset::<f64>()
-            .shape(self.data.len())
-            .create("Data")?;
-        println!("Wrote Data");
-        data_ds.write(&self.data)?;
-        file.flush()?;
-        Ok(())
-    }
-    
-    fn from_hdf5(group: &Group, time:SystemTime) -> hdf5_metno::Result<Self> {
-        let id_attr = group.attr("Identity")?;
-        let id_bytes = id_attr.read_raw::<u8>()?;
-        let id_json = String::from_utf8(id_bytes).unwrap();
-        let id = serde_json::from_str(id_json.as_str()).expect("Unable to deserialize from json");
-
-        let state_attr = group.attr("State")?;
-        let state = state_attr.read_scalar()?;
-
-        let data_ds = group.dataset("Data")?;
-        let data = data_ds.read_raw::<f64>()?;
-
-        Ok(ComPacketFloat{id,time,state,data})
-    }
-}
+//
+// /// Implementation of HDF5Object for ComPacketFloat.
+// impl Hdf5Object for ComPacketFloat {
+//     fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()> {
+//         let packet_time = self.time.duration_since(SystemTime::UNIX_EPOCH)
+//             .expect("Time went backwards");
+//         let packet_secs = packet_time.as_secs().to_string();
+//         let packet_ns = packet_time.subsec_nanos().to_string();
+//         println!("Packet Time: {}\nPacket NSecs: {}", packet_secs, packet_ns);
+//
+//         let super_group = file.create_group(packet_secs.as_str()).expect("Unable to create group");
+//         let group = super_group.create_group(packet_ns.as_str())?;
+//
+//         let s = serde_json::to_string(&self.id).expect("Unable to serialize to json");
+//         let attr = group.new_attr::<u8>().shape(s.len()).create("Identity")?;
+//         attr.write(s.as_bytes())?;
+//         println!("Wrote Identity");
+//         let attr = group.new_attr::<State>().create("State")?;
+//         attr.write_scalar(&self.state)?;
+//         println!("Wrote State");
+//
+//         let data_ds = group.new_dataset::<f64>()
+//             .shape(self.data.len())
+//             .create("Data")?;
+//         println!("Wrote Data");
+//         data_ds.write(&self.data)?;
+//         file.flush()?;
+//         Ok(())
+//     }
+//
+//     fn from_hdf5(group: &Group, time:SystemTime) -> hdf5_metno::Result<Self> {
+//         let id_attr = group.attr("Identity")?;
+//         let id_bytes = id_attr.read_raw::<u8>()?;
+//         let id_json = String::from_utf8(id_bytes).unwrap();
+//         let id = serde_json::from_str(id_json.as_str()).expect("Unable to deserialize from json");
+//
+//         let state_attr = group.attr("State")?;
+//         let state = state_attr.read_scalar()?;
+//
+//         let data_ds = group.dataset("Data")?;
+//         let data = data_ds.read_raw::<f64>()?;
+//
+//         Ok(ComPacketFloat{id,time,state,data})
+//     }
+// }
 
 /// Implementation of HDF5Object for ComPacketIntComplex.
 impl Hdf5Object for ComPacketIntComplex {
