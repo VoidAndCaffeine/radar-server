@@ -45,8 +45,9 @@
 //! - Implement radar control (Blocked by Add cryptography data to radar packet)
 //! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
 use std::env;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use hdf5_metno::File;
+use log::warn;
 use crate::plugins::publish_data::*;
 
 /// The plugins module contains all logic and datastructure submodules
@@ -54,18 +55,12 @@ mod plugins;
 use crate::plugins::radar_packet::*;
 use crate::plugins::source_data::*;
 
-///  The address to which all radar data is sent, tcp://*:5556
-static DATA_ADDRESS: &str = "tcp://*:5556";
-///  The address on which all radar server data is received, tcp://localhost:5556
-static SUBSCRIPTION_ADDRESS: &str = "tcp://localhost:5556";
-///  The address to which all control data is sent, tcp://*:5555
-static CONTROL_SEND_ADDRESS: &str = "tcp://*:5555";
-///  The address on which all control data is received, tcp://localhost:5555
-static CONTROL_RECEIVE_ADDRESS: &str = "tcp://localhost:5555";
-///  The address on which the archiver talks to the transformer, tcp://localhost:5557
-static TRANSFORMER_BIND_ADDRESS: &str = "tcp://*:5557";
-///  The address on which the transformer talks to the archiver, tcp://localhost:5557
-static TRANSFORMER_CONNECT_ADDRESS: &str = "tcp://localhost:5557";
+static CLIENT_PORT: &str = "5555";
+static CONTROL_PORT: &str = "5556";
+static RADAR_PORT: &str = "5557";
+static RADAR_ADDRESS: &str = "tcp://localhost:";
+static WORLD_ADDRESS: &str = "tcp://*:";
+static ARCHIVER_ADDRESS: &str = "tcp://localhost:";
 
 /// Main handles argument parsing and calling the necessary submodules.
 fn main() {
@@ -90,28 +85,6 @@ fn main() {
     //!
     //! ToDo: Sending archived data as well as forwarding live data is not yet implemented
     let args: Vec<String> = env::args().collect();
-    
-    let default_packet = ComPacketIntComplex {
-        id: Identity{
-            net_type: NetType::Server,
-            version: VERSION.to_string(),
-        },
-        time: SystemTime::now(),
-        state: State{
-            range: 0,
-            rotation_speed: 0.0,
-            blanking: Blanking{
-                start_delay: 0.0,
-                end_delay: 0.0,
-                azimuth: 0.0,
-                elevation: 0,
-                region_id: 0,
-            },
-            attenuation:0.0,
-            tune:0.0,
-        },
-        data: Vec::new(),
-    };
 
     if args.contains(&String::from("--server")) || args.contains(&String::from("-s")) {
         println!("Server mode is not yet implemented.");
@@ -120,11 +93,10 @@ fn main() {
 
     if args.contains(&String::from("--dummy")) || args.contains(&String::from("-d")) {
         println!("Running Dummy Server mode.");
-        let mut server: Connection = DummyServer::new_broadcast(DATA_ADDRESS);
-        let mut settings_channel: Connection = SettingsChannel::new_dealer(CONTROL_RECEIVE_ADDRESS, "DummyServer");
+        let mut server: Connection = Server::new_broadcast([WORLD_ADDRESS, RADAR_PORT].concat().as_str());
+        let mut settings_channel: Connection = SettingsChannel::new_dealer([ARCHIVER_ADDRESS,CONTROL_PORT].concat().as_str(), "DummyServer");
         let mut settings: Option<ComPacketSettings>;
         let mut dummy = DummyData;
-        let mut packet: ComPacketIntComplex = default_packet;
 
         loop {
             settings =settings_channel.receive_settings();
@@ -138,25 +110,21 @@ fn main() {
                         },
                         first_time: true,
                         playback: None,
-                        setting: Option::from(packet.state.get_setting()),
+                        setting: Option::from(dummy.get_state().get_setting()),
                     });
                     continue;
                 }
-                println!("Settings received, no settings implemented");
-                todo!();
+                warn!("No settings implemented");
+                continue;
             }
-            packet.time = SystemTime::now();
-            packet.data = dummy.source_complex_data().to_vec();
-            server.broadcast(&mut packet);
+            server.broadcast(&dummy.source_complex_data());
         }
     }
 
     if args.contains(&String::from("--archive")) || args.contains(&String::from("-a")) {
-        let mut subscription: Connection = Subscriber::new_subscription(SUBSCRIPTION_ADDRESS);
-        let mut settings_channel: Connection = SettingsChannel::new_dealer(CONTROL_RECEIVE_ADDRESS,"Archiver");
-        let mut transformer_pair: Connection = TransformerPair::bind_pair(TRANSFORMER_BIND_ADDRESS);
-        let mut live = true;
-        let mut send_packet: ComPacketIntComplex = default_packet;
+        let mut subscription: Connection = Subscriber::new_subscription([RADAR_ADDRESS, RADAR_PORT].concat().as_str());
+        let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
+        let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
         let mut t_playback = Option::from(SystemTime::now());
         let mut archived = ArchivedData{
             packet_time: SystemTime::now(),
@@ -171,9 +139,9 @@ fn main() {
                 let u_settings  = settings.unwrap();
                 if u_settings.playback.is_some(){
                     let playback = u_settings.playback.unwrap();
-                    live = match playback.time {
-                        Some(_) => false,
-                        None => true,
+                    archived.time_next = match playback.time {
+                        Some(t) => Option::from(t),
+                        None => None,
                     };
                     t_playback = playback.time;
                 }
@@ -181,15 +149,14 @@ fn main() {
             let receive_packet = subscription.subscribe_check();
             println!("Subscription received: \n{}",serde_json::to_string(&receive_packet).unwrap());
             receive_packet.to_hdf5(&archived.file).expect("Unable to write to file");
-            if live {
+            if archived.time_next.is_none() {
                 println!("Forwarding Live Packet.");
-                transformer_pair.send(&receive_packet);
+                client.broadcast(&receive_packet);
                 continue;
             } else {
-                send_packet.time = archived.packet_time;
                 archived.time_next = t_playback;
-                send_packet.data = archived.source_complex_data().to_vec();
-                transformer_pair.send(&send_packet);
+                let to_send = archived.source_complex_data();
+                client.broadcast(&to_send);
                 continue;
             }
         }

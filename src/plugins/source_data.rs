@@ -3,11 +3,13 @@ use num_complex::{Complex, ComplexDistribution};
 use rand::distr::Distribution;
 use hdf5_metno::File;
 use rand_distr::{Normal, Uniform};
+use crate::plugins::radar_packet::{Blanking, ComPacketIntComplex, Identity, NetType, State, VERSION};
 
 /// The number of data samples per packet
 ///
 /// ToDo: this value should be dynamic, and probably in the radar data packet
 pub static NUM_SAMPLES:usize = 1000;
+
 /// Organizational struct for DummyData.
 pub struct DummyData;
 
@@ -19,46 +21,60 @@ pub struct ArchivedData{
     pub(crate) file: File,
 }
 
-// /// A struct that functions as a FloatDataSource.
-// pub trait FloatDataSource {
-//     /// Returns an array of f64s NUM_SAMPLES long
-//     fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES];
-// }
 pub trait ComplexDataSource {
-    fn source_complex_data(&mut self) -> Vec<Complex<i16>>;
+    fn source_complex_data(&mut self) -> ComPacketIntComplex;
+    fn get_state(&self) -> State{
+        State{
+            range: 0,
+            rotation_speed: 0.0,
+            blanking: Blanking{
+                start_delay: 0.0,
+                end_delay: 0.0,
+                azimuth: 0.0,
+                elevation: 0,
+                region_id: 0,
+            },
+            attenuation:0.0,
+            tune:0.0,
+        }
+    }
 }
-// 
-// impl FloatDataSource for DummyData {
-//     fn source_normal_data(&mut self) -> [f64; NUM_SAMPLES] {
-//         let mut retarry = [0.0; NUM_SAMPLES];
-//         let mut rng = rand::rng();
-//         let normal = Normal::new(0.0, 1.0).expect("Invalid distribution");
-//         for i in 0..NUM_SAMPLES {
-//             retarry[i] = normal.sample(&mut rng);
-//         }
-//         retarry
-//     }
-// }
 
 impl ComplexDataSource for DummyData {
-    fn source_complex_data(&mut self) -> Vec<Complex<i16>> {
+    fn source_complex_data(&mut self) -> ComPacketIntComplex {
         let mut rng = rand::rng();
         let uniform = Uniform::new(i16::MIN, i16::MAX).expect("Invalid distribution");
-        let mut ret: Vec<Complex<i16>> = Vec::with_capacity(NUM_SAMPLES);
+        let mut data_vec: Vec<Complex<i16>> = Vec::with_capacity(NUM_SAMPLES);
         for _ in 0..NUM_SAMPLES {
-            ret.push(Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng)));
+            data_vec.push(Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng)));
         }
-        ret
+        ComPacketIntComplex {
+            id: Identity{
+                net_type: NetType::Server,
+                version: VERSION.to_string(),
+            },
+            time: SystemTime::now(),
+            state: State{
+                range: 0,
+                rotation_speed: 0.0,
+                blanking: Blanking{
+                    start_delay: 0.0,
+                    end_delay: 0.0,
+                    azimuth: 0.0,
+                    elevation: 0,
+                    region_id: 0,
+                },
+                attenuation:0.0,
+                tune:0.0,
+            },
+            data:data_vec,
+        }
     }
 }
 
 impl ComplexDataSource for ArchivedData {
-    fn source_complex_data(&mut self) -> Vec<Complex<i16>> {
-        // check for new seek time
-        // seek backwards only if new
-        // find correct timestamp
-        // set rate
-        // set time
+    fn source_complex_data(&mut self) -> ComPacketIntComplex {
+
         todo!()
     }
 }
