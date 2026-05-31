@@ -42,6 +42,10 @@ pub struct Blanking {
 #[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
 #[repr(C)]
 pub struct State {
+    pub(crate) angle:f64,
+    pub(crate) antenna:u8,
+    pub(crate) enabled:bool,
+    pub(crate) samples:u64,
     pub(crate) range:i64,
     pub(crate) rotation_speed:f64,
     pub(crate) blanking: Blanking,
@@ -55,7 +59,7 @@ pub struct State {
 #[derive(Serialize,Deserialize,Debug)]
 pub struct ComPacket {
     pub(crate) identity:Identity,
-    pub(crate) time:f64,
+    pub(crate) timestamp:f64,
     pub(crate) state:State,
     #[serde(with="serde_bytes")]
     pub(crate) data:Vec<u8>,
@@ -110,6 +114,38 @@ pub trait ExportbleSetting {
 
 impl ExportbleSetting for State {
     fn  get_setting(&self) -> Setting {
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Angle".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: None,
+            values: None,
+        });
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Antenna".to_string(),
+            min: Option::from(0),
+            max: Option::from(4),
+            step: Option::from(1),
+            values: None,
+        });
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Enable".to_string(),
+            min: Option::from(0),
+            max: Option::from(1),
+            step: Option::from(1),
+            values: None,
+        });
+        let mut vals = Vec::<Setting>::new();
+        vals.push( Setting{
+            name:"Samples".to_string(),
+            min: Option::from(0),
+            max: Option::from(0xfffffff),
+            step: Option::from(1),
+            values: None,
+        });
         let mut vals = Vec::<Setting>::new();
         vals.push( Setting{
             name:"Range".to_string(),

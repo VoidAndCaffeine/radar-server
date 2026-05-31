@@ -26,6 +26,10 @@ pub trait ComplexDataSource {
     fn source_complex_data(&mut self) -> ComPacket;
     fn get_state(&self) -> State{
         State{
+            angle: 0.0,
+            antenna: 0,
+            enabled: true,
+            samples: NUM_SAMPLES as u64,
             range: 0,
             rotation_speed: 0.0,
             blanking: Blanking{
@@ -60,10 +64,14 @@ impl ComplexDataSource for DummyData {
                 net_type: NetType::Server,
                 version: VERSION.to_string(),
             },
-            time: SystemTime::now().duration_since(UNIX_EPOCH)
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH)
                 .expect("Time before EPOCH not supported")
                 .as_secs_f64(),
             state: State{
+                angle: 0.0,
+                antenna: 0,
+                enabled: true,
+                samples: NUM_SAMPLES as u64,
                 range: 0,
                 rotation_speed: 0.0,
                 blanking: Blanking{
