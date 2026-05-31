@@ -1,9 +1,10 @@
-use std::time::SystemTime;
+use std::collections::btree_set::Iter;
+use std::time::{SystemTime, UNIX_EPOCH};
 use num_complex::{Complex, ComplexDistribution};
 use rand::distr::Distribution;
 use hdf5_metno::File;
-use rand_distr::{Normal, Uniform};
-use crate::plugins::radar_packet::{Blanking, ComPacketIntComplex, Identity, NetType, State, VERSION};
+use rand_distr::Uniform;
+use crate::plugins::radar_packet::{Blanking, ComPacket, Identity, NetType, State, VERSION};
 
 /// The number of data samples per packet
 ///
@@ -22,7 +23,7 @@ pub struct ArchivedData{
 }
 
 pub trait ComplexDataSource {
-    fn source_complex_data(&mut self) -> ComPacketIntComplex;
+    fn source_complex_data(&mut self) -> ComPacket;
     fn get_state(&self) -> State{
         State{
             range: 0,
@@ -41,19 +42,24 @@ pub trait ComplexDataSource {
 }
 
 impl ComplexDataSource for DummyData {
-    fn source_complex_data(&mut self) -> ComPacketIntComplex {
+    fn source_complex_data(&mut self) -> ComPacket {
         let mut rng = rand::rng();
         let uniform = Uniform::new(i32::MIN, i32::MAX).expect("Invalid distribution");
-        let mut data_vec: Vec<Complex<i32>> = Vec::with_capacity(NUM_SAMPLES);
+        let mut byte_vec: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
         for _ in 0..NUM_SAMPLES {
-            data_vec.push(Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng)));
+            let c = Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng));
+            byte_vec.extend_from_slice(&c.re.to_le_bytes());
+            byte_vec.extend_from_slice(&c.im.to_le_bytes());
         }
-        ComPacketIntComplex {
-            id: Identity{
+
+        ComPacket {
+            identity: Identity{
                 net_type: NetType::Server,
                 version: VERSION.to_string(),
             },
-            time: SystemTime::now(),
+            time: SystemTime::now().duration_since(UNIX_EPOCH)
+                .expect("Time before EPOCH not supported")
+                .as_secs_f64(),
             state: State{
                 range: 0,
                 rotation_speed: 0.0,
@@ -67,14 +73,13 @@ impl ComplexDataSource for DummyData {
                 attenuation:0.0,
                 tune:0.0,
             },
-            data:data_vec,
+            data:byte_vec,
         }
     }
 }
 
 impl ComplexDataSource for ArchivedData {
-    fn source_complex_data(&mut self) -> ComPacketIntComplex {
-
+    fn source_complex_data(&mut self) -> ComPacket {
         todo!()
     }
 }

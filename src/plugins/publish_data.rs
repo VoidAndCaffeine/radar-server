@@ -1,10 +1,9 @@
 use std::thread;
 use std::time::{Duration, SystemTime};
-use num_complex::Complex;
 use zmq;
 use zmq::Message;
 use crate::plugins::radar_packet::*;
-use crate::plugins::source_data::*;
+use rmp_serde::{to_vec, to_vec_named};
 
 /// Contains the context and socket for a ZMQ connection
 pub struct Connection {
@@ -17,7 +16,7 @@ pub trait Server {
     /// Creates a new Dummy Server.
     fn new_broadcast(ip:&str) -> Self;
     /// Sends simulated radar data on a loop.
-    fn broadcast(&mut self,packet: &ComPacketIntComplex );
+    fn broadcast(&mut self,packet: &ComPacket );
 }
 
 /// A connection that subscribes to the specified ip.
@@ -25,7 +24,7 @@ pub trait Subscriber {
     /// Creates a new Subscriber.
     fn new_subscription(ip:&str) -> Self;
     /// Checks for new packets on the connection.
-    fn subscribe_check(&mut self) -> ComPacketIntComplex;
+    fn subscribe_check(&mut self) -> ComPacket;
 }
 
 pub trait SettingsChannel {
@@ -45,24 +44,11 @@ impl Server for Connection {
         Connection {context, socket}
     }
 
-    fn broadcast(&mut self, packet: &ComPacketIntComplex) {
-        let meta = Message::from(serde_json::to_string(&packet)
-            .expect("Failed to serialize packet").as_str());
-        let cdata:Vec<u8> = packet
-            .data
-            .to_vec()
-            .iter()
-            .flat_map(|c| {
-                    let re = c.re.to_le_bytes().into_iter();
-                    let im = c.im.to_le_bytes().into_iter();
-                    re.chain(im)
-                })
-            .collect();
-        let data = Message::from(cdata);
-        self.socket.send_multipart([meta,data],0).expect("Failed to send packet.");
+    fn broadcast(&mut self, packet: &ComPacket) {
+        let pak = to_vec_named(packet).expect("Could not serialize packet.");
+        self.socket.send(pak,0).expect("Failed to send packet.");
 
-        println!("Sent packet: \n{}", &serde_json::to_string(&packet)
-            .expect("Failed to serialize packet"));
+        println!("Sent packet");
         thread::sleep(Duration::from_millis(1000));
     }
 }
@@ -76,10 +62,9 @@ impl Subscriber for Connection {
         println!("Subscribe complete");
         Connection {context, socket}
     }
-    fn subscribe_check(&mut self) -> ComPacketIntComplex{
+    fn subscribe_check(&mut self) -> ComPacket{
         let message = self.socket.recv_msg(0).unwrap();
-        let s = message.as_str().unwrap();
-        serde_json::from_str::<ComPacketIntComplex>(s).unwrap()
+        rmp_serde::from_slice(&message).expect("Could not deserialize message.")
     }
 }
 
@@ -104,7 +89,7 @@ impl SettingsChannel for Connection {
 
     fn request_date(&mut self, time: SystemTime) {
         let packet: ComPacketSettings = ComPacketSettings {
-            id: Identity{
+            identity: Identity{
                 net_type: NetType::Client,
                 version: VERSION.to_string(),
             },

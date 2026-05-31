@@ -104,7 +104,7 @@ fn main() {
                 let u_setting = settings.unwrap();
                 if u_setting.first_time {
                     settings_channel.send_settings(&ComPacketSettings {
-                        id: Identity {
+                        identity: Identity {
                             net_type: NetType::Server,
                             version: VERSION.to_string(),
                         },
@@ -147,8 +147,7 @@ fn main() {
                 }
             }
             let receive_packet = subscription.subscribe_check();
-            println!("Subscription received: \n{}",serde_json::to_string(&receive_packet).unwrap());
-            receive_packet.to_hdf5(&archived.file).expect("Unable to write to file");
+            //receive_packet.to_hdf5(&archived.file).expect("Unable to write to file");
             if archived.time_next.is_none() {
                 println!("Forwarding Live Packet.");
                 client.broadcast(&receive_packet);
