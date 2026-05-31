@@ -1,7 +1,7 @@
 use std::string::ToString;
 use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as,skip_serializing_none};
+use serde_with::skip_serializing_none;
 use hdf5_metno::{File, Group, H5Type};
 use num_complex::Complex;
 
@@ -57,6 +57,7 @@ pub struct ComPacket {
     pub(crate) identity:Identity,
     pub(crate) time:f64,
     pub(crate) state:State,
+    #[serde(with="serde_bytes")]
     pub(crate) data:Vec<u8>,
 }
 

@@ -46,11 +46,14 @@ impl ComplexDataSource for DummyData {
         let mut rng = rand::rng();
         let uniform = Uniform::new(i32::MIN, i32::MAX).expect("Invalid distribution");
         let mut byte_vec: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
+        print!("nums:[");
         for _ in 0..NUM_SAMPLES {
             let c = Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng));
+            print!("({}, {}), ",c.re,c.im);
             byte_vec.extend_from_slice(&c.re.to_le_bytes());
             byte_vec.extend_from_slice(&c.im.to_le_bytes());
         }
+        print!("]\n");
 
         ComPacket {
             identity: Identity{
