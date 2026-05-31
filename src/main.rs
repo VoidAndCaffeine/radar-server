@@ -47,7 +47,6 @@
 use std::{env, thread};
 use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
-use log::warn;
 use crate::plugins::publish_data::*;
 
 /// The plugins module contains all logic and datastructure submodules
@@ -114,7 +113,7 @@ fn main() {
                     });
                     continue;
                 }
-                warn!("No settings implemented");
+                println!("No settings implemented");
                 continue;
             }
             server.broadcast(&dummy.source_complex_data());
