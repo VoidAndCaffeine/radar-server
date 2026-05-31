@@ -58,7 +58,8 @@ pub struct ComPacketIntComplex {
     pub(crate) id:Identity,
     pub(crate) time:SystemTime,
     pub(crate) state:State,
-    pub(crate) data:Vec<Complex<i16>>
+    #[serde(skip)]
+    pub(crate) data:Vec<Complex<i32>>
 }
 
 /// A struct to denote a change in the date/time archived playback
@@ -239,7 +240,7 @@ impl Hdf5Object for ComPacketIntComplex {
         let state = state_attr.read_scalar()?;
 
         let data_ds = group.dataset("Data")?;
-        let data = data_ds.read_raw::<Complex<i16>>()?;
+        let data = data_ds.read_raw::<Complex<i32>>()?;
 
         Ok(ComPacketIntComplex{id,time,state,data})
     }

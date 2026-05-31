@@ -43,8 +43,8 @@ pub trait ComplexDataSource {
 impl ComplexDataSource for DummyData {
     fn source_complex_data(&mut self) -> ComPacketIntComplex {
         let mut rng = rand::rng();
-        let uniform = Uniform::new(i16::MIN, i16::MAX).expect("Invalid distribution");
-        let mut data_vec: Vec<Complex<i16>> = Vec::with_capacity(NUM_SAMPLES);
+        let uniform = Uniform::new(i32::MIN, i32::MAX).expect("Invalid distribution");
+        let mut data_vec: Vec<Complex<i32>> = Vec::with_capacity(NUM_SAMPLES);
         for _ in 0..NUM_SAMPLES {
             data_vec.push(Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng)));
         }

@@ -1,6 +1,8 @@
 use std::thread;
 use std::time::{Duration, SystemTime};
+use num_complex::Complex;
 use zmq;
+use zmq::Message;
 use crate::plugins::radar_packet::*;
 use crate::plugins::source_data::*;
 
@@ -44,11 +46,20 @@ impl Server for Connection {
     }
 
     fn broadcast(&mut self, packet: &ComPacketIntComplex) {
-        self.socket.send(
-            &serde_json::to_string(&packet)
-                .expect("Failed to serialize packet"),
-            0,
-        ).expect("Failed to send packet");
+        let meta = Message::from(serde_json::to_string(&packet)
+            .expect("Failed to serialize packet").as_str());
+        let cdata:Vec<u8> = packet
+            .data
+            .to_vec()
+            .iter()
+            .flat_map(|c| {
+                    let re = c.re.to_le_bytes().into_iter();
+                    let im = c.im.to_le_bytes().into_iter();
+                    re.chain(im)
+                })
+            .collect();
+        let data = Message::from(cdata);
+        self.socket.send_multipart([meta,data],0).expect("Failed to send packet.");
 
         println!("Sent packet: \n{}", &serde_json::to_string(&packet)
             .expect("Failed to serialize packet"));
