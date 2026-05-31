@@ -49,7 +49,6 @@ impl Server for Connection {
         self.socket.send(pak,0).expect("Failed to send packet.");
 
         println!("Sent packet");
-        thread::sleep(Duration::from_millis(1000));
     }
 }
 

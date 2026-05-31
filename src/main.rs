@@ -44,8 +44,8 @@
 //! - Add cryptography data to radar_packet (Blocked by Finalize radar control security)
 //! - Implement radar control (Blocked by Add cryptography data to radar packet)
 //! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
-use std::env;
-use std::time::SystemTime;
+use std::{env, thread};
+use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
 use log::warn;
 use crate::plugins::publish_data::*;
@@ -118,6 +118,7 @@ fn main() {
                 continue;
             }
             server.broadcast(&dummy.source_complex_data());
+            thread::sleep(Duration::from_millis(1000));
         }
     }
 
@@ -154,10 +155,22 @@ fn main() {
                 continue;
             } else {
                 archived.time_next = t_playback;
-                let to_send = archived.source_complex_data();
-                client.broadcast(&to_send);
+                //let to_send = archived.source_complex_data();
+                //client.broadcast(&to_send);
                 continue;
             }
+        }
+    }
+    if args.contains(&String::from("--demo")) || args.contains(&String::from("-e")){
+        let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
+        let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
+        let mut demo = DemoData::new();
+        loop {
+            let p = demo.source_complex_data();
+            let s = serde_json::to_string(&p).unwrap();
+            println!("{s}");
+            client.broadcast(&p);
+            thread::sleep(Duration::from_millis(1000));
         }
     }
 
