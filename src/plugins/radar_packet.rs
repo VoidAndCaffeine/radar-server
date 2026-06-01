@@ -1,10 +1,8 @@
 use std::string::ToString;
 use std::time::SystemTime;
-use fastrand::u16;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use hdf5_metno::{File, Group, H5Type};
-use num_complex::Complex;
+use hdf5_metno::{File, H5Type};
 
 /// Server binary version sourced from cargo at compile time.
 pub static VERSION:&str = env!("CARGO_PKG_VERSION");
@@ -96,7 +94,6 @@ pub trait Hdf5Object{
 
 pub trait ExportableSetting {
     fn get_default_settings(&self) -> Option<Vec<Setting>>;
-    fn get_archive_settings(&self) -> Option<Vec<Setting>>;
 }
 
 impl ExportableSetting for State {
@@ -126,16 +123,12 @@ impl ExportableSetting for State {
             unit: Some("Samples/Sec".to_string()),
             values: None,
         });
-        Some(vals)
-    }
-    fn get_archive_settings(&self) -> Option<Vec<Setting>> {
-        let mut vals = Vec::<Setting>::new();
         vals.push(Setting{
-            name:"Playback Rate".to_string(),
+            name:"Playback Delay".to_string(),
             min: Some("0".to_string()),
             max: Some(u16::MAX.to_string()),
-            step: None,
-            unit: Some("Samples/Sec".to_string()),
+            step: Some("1".to_string()),
+            unit: Some("Ms".to_string()),
             values: None,
         });
         Some(vals)

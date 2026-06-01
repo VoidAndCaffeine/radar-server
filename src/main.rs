@@ -162,11 +162,14 @@ fn main() {
                             &settings
                         );
                         println!("Sent settings{} to {:?}",serde_json::to_string(&settings).unwrap(),message[0]);
+                    }else {
+                        let m = &message[1];
+                        println!("{}", str::from_utf8(&m).unwrap());
                     }
                 }
             }
             let p = demo.source_complex_data();
-            //client.broadcast(&p);
+            client.broadcast(&p);
             thread::sleep(Duration::from_millis(demo.delay));
         }
     }

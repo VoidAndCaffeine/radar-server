@@ -1,9 +1,6 @@
-use std::thread;
-use std::time::{Duration, SystemTime};
 use zmq;
-use zmq::Message;
 use crate::plugins::radar_packet::*;
-use rmp_serde::{to_vec, to_vec_named};
+use rmp_serde::{to_vec_named};
 
 /// Contains the context and socket for a ZMQ connection
 pub struct Connection {
@@ -46,8 +43,6 @@ impl Server for Connection {
     fn broadcast(&mut self, packet: &ComPacket) {
         let pak = to_vec_named(packet).expect("Could not serialize packet.");
         self.socket.send(pak,0).expect("Failed to send packet.");
-
-        println!("Sent packet");
     }
 }
 
@@ -91,7 +86,6 @@ impl SettingsChannel for Connection {
     fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>{
         match zmq::poll(&mut [self.socket.as_poll_item(zmq::POLLIN)], 10) {
             Ok(event) if event > 0 => {
-                println!("Event: {}",event);
                 Some(self.socket.recv_multipart(0).unwrap())
             }
             _ => None

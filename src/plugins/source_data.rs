@@ -1,9 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use num_complex::Complex;
-use rand::distr::Distribution;
-use hdf5_metno::{Dataset, File};
-use rand::rngs::ThreadRng;
-use rand_distr::Uniform;
+use hdf5_metno::{File};
 use crate::plugins::radar_packet::*;
 
 /// The number of data samples per packet
