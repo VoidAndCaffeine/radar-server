@@ -1,7 +1,6 @@
 use std::thread;
 use std::time::{Duration, SystemTime};
-use zmq;
-use zmq::Message;
+use zmq2 as zmq;
 use crate::plugins::radar_packet::*;
 use rmp_serde::{to_vec, to_vec_named};
 
