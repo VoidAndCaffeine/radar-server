@@ -4,7 +4,7 @@ use rand::distr::Distribution;
 use hdf5_metno::{Dataset, File};
 use rand::rngs::ThreadRng;
 use rand_distr::Uniform;
-use crate::plugins::radar_packet::{Blanking, ComPacket, Identity, NetType, State, VERSION};
+use crate::plugins::radar_packet::*;
 
 /// The number of data samples per packet
 ///
@@ -65,17 +65,7 @@ impl DemoData{
                 antenna: 0,
                 enabled: true,
                 samples: NUM_SAMPLES as u64,
-                range: 0,
                 rotation_speed: 0.0,
-                blanking: Blanking{
-                    start_delay: 0.0,
-                    end_delay: 0.0,
-                    azimuth: 0.0,
-                    elevation: 0,
-                    region_id: 0,
-                },
-                attenuation:0.0,
-                tune:0.0,
             }
         }
     }
@@ -97,17 +87,7 @@ pub trait ComplexDataSource {
             antenna: 0,
             enabled: true,
             samples: NUM_SAMPLES as u64,
-            range: 0,
             rotation_speed: 0.0,
-            blanking: Blanking{
-                start_delay: 0.0,
-                end_delay: 0.0,
-                azimuth: 0.0,
-                elevation: 0,
-                region_id: 0,
-            },
-            attenuation:0.0,
-            tune:0.0,
         }
     }
 }
@@ -152,7 +132,6 @@ impl ComplexDataSource for DemoData {
             timestamp - self.time_ds[self.idx - 1]
         };
 
-        self.state.angle = self.angle_ds[self.idx];
         self.state.antenna = self.antenna_ds[self.idx] as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
         self.state.samples = samples;

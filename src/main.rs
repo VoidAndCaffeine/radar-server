@@ -155,7 +155,7 @@ fn main() {
                                 version:VERSION.to_string()
                             },
                             playback: None,
-                            controls: demo.get_state().get_setting_vec()
+                            controls: demo.get_state().get_default_settings()
                         };
                         settings_channel.send_settings(
                             message[0].clone(),

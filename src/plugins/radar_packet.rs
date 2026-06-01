@@ -1,5 +1,6 @@
 use std::string::ToString;
 use std::time::SystemTime;
+use fastrand::u16;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use hdf5_metno::{File, Group, H5Type};
@@ -23,18 +24,6 @@ pub struct Identity {
     pub(crate) version:String,
 }
 
-/// The blanking region, current values are placeholders
-///
-/// ToDo: get proper values
-#[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
-#[repr(C)]
-pub struct Blanking {
-    pub(crate) start_delay:f32,
-    pub(crate) end_delay:f32,
-    pub(crate) azimuth:f32,
-    pub(crate) elevation:i32,
-    pub(crate) region_id:i32,
-}
 
 /// The state of the radar at the time of recording.
 ///
@@ -46,11 +35,7 @@ pub struct State {
     pub(crate) antenna:u8,
     pub(crate) enabled:bool,
     pub(crate) samples:u64,
-    pub(crate) range:i64,
     pub(crate) rotation_speed:f64,
-    pub(crate) blanking: Blanking,
-    pub(crate) attenuation:f64,
-    pub(crate) tune:f64,
 }
 
 /// The radar data packet for use with dummy complex i16 data.
@@ -88,9 +73,10 @@ pub struct ComPacketSettings {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Setting {
     name:String,
-    min:Option<i32>,
-    max:Option<i32>,
-    step:Option<i32>,
+    min:Option<String>,
+    max:Option<String>,
+    step:Option<String>,
+    unit:Option<String>,
     values:Option<Vec<Setting>>,
 }
 
@@ -109,126 +95,50 @@ pub trait Hdf5Object{
 }
 
 pub trait ExportableSetting {
-    fn get_setting_vec(&self) -> Option<Vec<Setting>>;
-    fn get_setting(&self) -> Option<Setting>;
+    fn get_default_settings(&self) -> Option<Vec<Setting>>;
+    fn get_archive_settings(&self) -> Option<Vec<Setting>>;
 }
 
 impl ExportableSetting for State {
-    fn get_setting_vec(&self) -> Option<Vec<Setting>> {
-        let mut vals = Vec::<Setting>::new();
-        vals.push( Setting{
-            name:"Angle".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
-            values: None,
-        });
-        let mut vals = Vec::<Setting>::new();
-        vals.push( Setting{
-            name:"Antenna".to_string(),
-            min: Option::from(0),
-            max: Option::from(4),
-            step: Option::from(1),
-            values: None,
-        });
-        let mut vals = Vec::<Setting>::new();
-        vals.push( Setting{
-            name:"Enable".to_string(),
-            min: Option::from(0),
-            max: Option::from(1),
-            step: Option::from(1),
-            values: None,
-        });
+    fn get_default_settings(&self) -> Option<Vec<Setting>> {
         let mut vals = Vec::<Setting>::new();
         vals.push( Setting{
             name:"Samples".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: Option::from(1),
-            values: None,
-        });
-        let mut vals = Vec::<Setting>::new();
-        vals.push( Setting{
-            name:"Range".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
+            min: Some("0".to_string()),
+            max: Some(u16::MAX.to_string()),
+            step: Some("1".to_string()),
+            unit: None,
             values: None,
         });
         vals.push( Setting{
             name:"Rotation Rate".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
+            min: Some("0.0".to_string()),
+            max: Some("1.0".to_string()),
             step: None,
-            values: None,
-        });
-        vals.push(self.blanking.get_setting().unwrap());
-        vals.push( Setting{
-            name:"Attenuation".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
+            unit: Some("Degrees/Sec".to_string()),
             values: None,
         });
         vals.push( Setting{
-            name:"Tune".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
+            name:"Sample Rate".to_string(),
+            min: Some("0".to_string()),
+            max: Some(u16::MAX.to_string()),
             step: None,
+            unit: Some("Samples/Sec".to_string()),
             values: None,
         });
         Some(vals)
     }
-    fn get_setting(&self) -> Option<Setting> {None}
-}
-
-impl ExportableSetting for Blanking {
-    fn get_setting_vec(&self) -> Option<Vec<Setting>> {None}
-    fn  get_setting(&self) -> Option<Setting> {
+    fn get_archive_settings(&self) -> Option<Vec<Setting>> {
         let mut vals = Vec::<Setting>::new();
-        vals.push( Setting{
-            name:"Start Delay".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
+        vals.push(Setting{
+            name:"Playback Rate".to_string(),
+            min: Some("0".to_string()),
+            max: Some(u16::MAX.to_string()),
             step: None,
+            unit: Some("Samples/Sec".to_string()),
             values: None,
         });
-        vals.push( Setting{
-            name:"End Delay".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
-            values: None,
-        });
-        vals.push( Setting{
-            name:"Azimuth".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
-            values: None,
-        });
-        vals.push( Setting{
-            name:"Elevation".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: None,
-            values: None,
-        });
-        vals.push( Setting{
-            name:"Region ID".to_string(),
-            min: Option::from(0),
-            max: Option::from(0xfffffff),
-            step: Option::from(1),
-            values: None,
-        });
-
-        Some(Setting{
-            name: "Blanking Region".to_string(),
-            min: None,
-            max: None,
-            step: None,
-            values: Option::from(vals),
-        })
+        Some(vals)
     }
 }
 
