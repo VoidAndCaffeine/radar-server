@@ -45,6 +45,7 @@
 //! - Implement radar control (Blocked by Add cryptography data to radar packet)
 //! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
 use std::{env, thread};
+use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
 use crate::plugins::publish_data::*;
@@ -52,6 +53,7 @@ use crate::plugins::publish_data::*;
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
 use crate::plugins::radar_packet::*;
+use crate::plugins::radar_packet::NetType::Archiver;
 use crate::plugins::source_data::*;
 
 static CLIENT_PORT: &str = "5555";
@@ -98,24 +100,6 @@ fn main() {
         let mut dummy = DummyData;
 
         loop {
-            settings =settings_channel.receive_settings();
-            if settings.is_some(){
-                let u_setting = settings.unwrap();
-                if u_setting.first_time {
-                    settings_channel.send_settings(&ComPacketSettings {
-                        identity: Identity {
-                            net_type: NetType::Server,
-                            version: VERSION.to_string(),
-                        },
-                        first_time: true,
-                        playback: None,
-                        setting: Option::from(dummy.get_state().get_setting()),
-                    });
-                    continue;
-                }
-                println!("No settings implemented");
-                continue;
-            }
             server.broadcast(&dummy.source_complex_data());
             thread::sleep(Duration::from_millis(1000));
         }
@@ -134,18 +118,6 @@ fn main() {
                 .expect("Unable to open radar_archive.h5 file")
         };
         loop {
-            let settings = settings_channel.receive_settings();
-            if settings.is_some() {
-                let u_settings  = settings.unwrap();
-                if u_settings.playback.is_some(){
-                    let playback = u_settings.playback.unwrap();
-                    archived.time_next = match playback.time {
-                        Some(t) => Option::from(t),
-                        None => None,
-                    };
-                    t_playback = playback.time;
-                }
-            }
             let receive_packet = subscription.subscribe_check();
             //receive_packet.to_hdf5(&archived.file).expect("Unable to write to file");
             if archived.time_next.is_none() {
@@ -168,11 +140,33 @@ fn main() {
         let mut demo = DemoData::new(noisy);
         let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
         let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
+        let mut settings_dealers = HashSet::new();
         loop {
+            {
+                let settings_check = settings_channel.check_settings();
+                if settings_check.is_some() {
+                    let message = settings_check.unwrap();
+                    if !settings_dealers.contains(&message[0]){
+                        println!("Adding dealer {:?} to known dealers",message[0]);
+                        settings_dealers.insert(message[0].clone());
+                        let settings = ComPacketSettings{
+                            identity: Identity{
+                                net_type:Archiver,
+                                version:VERSION.to_string()
+                            },
+                            playback: None,
+                            controls: demo.get_state().get_setting_vec()
+                        };
+                        settings_channel.send_settings(
+                            message[0].clone(),
+                            &settings
+                        );
+                        println!("Sent settings{} to {:?}",serde_json::to_string(&settings).unwrap(),message[0]);
+                    }
+                }
+            }
             let p = demo.source_complex_data();
-            //let s = serde_json::to_string(&p).unwrap();
-            //println!("{s}");
-            client.broadcast(&p);
+            //client.broadcast(&p);
             thread::sleep(Duration::from_millis(demo.delay));
         }
     }

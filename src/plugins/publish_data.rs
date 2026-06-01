@@ -30,9 +30,8 @@ pub trait Subscriber {
 pub trait SettingsChannel {
     fn new_router(ip:&str) -> Self;
     fn new_dealer(ip:&str,whoami:&str) -> Self;
-    fn send_settings(&mut self, settings: &ComPacketSettings);
-    fn request_date(&mut self, time:SystemTime);
-    fn receive_settings(&mut self) -> Option<ComPacketSettings > ;
+    fn send_settings(&mut self,dealerid:Vec<u8>, settings: &ComPacketSettings);
+    fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>;
 }
 
 
@@ -72,6 +71,7 @@ impl SettingsChannel for Connection {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::ROUTER).unwrap();
         socket.bind(ip).expect("Could not bind socket.");
+        println!("Settings channel router bound to {}",ip);
         Connection {context, socket }
     }
     fn new_dealer(ip:&str,whoami:&str) -> Connection {
@@ -79,31 +79,22 @@ impl SettingsChannel for Connection {
         let socket = context.socket(zmq::DEALER).unwrap();
         socket.set_identity(whoami.as_bytes()).expect("Failed to set identity");
         socket.connect(ip).expect("Failed to connect to socket");
+        println!("Settings channel dealer {} connected to {}",whoami,ip);
         Connection {context, socket}
     }
-    fn send_settings(&mut self, settings:&ComPacketSettings) {
+    fn send_settings(&mut self, dealer_id:Vec<u8>, settings:&ComPacketSettings) {
+        self.socket.send(dealer_id, zmq::SNDMORE).expect("failed to target dealer");
         self.socket.send(&serde_json::to_string(settings).expect("Failed to serialize settings"), 0)
             .expect("Failed to send packet");
     }
 
-    fn request_date(&mut self, time: SystemTime) {
-        let packet: ComPacketSettings = ComPacketSettings {
-            identity: Identity{
-                net_type: NetType::Client,
-                version: VERSION.to_string(),
-            },
-            first_time: false,
-            playback: Option::from(ArchivedPlayback {time:Option::from(time)}),
-            setting: None,
-        };
-        self.send_settings(&packet);
-    }
-
-    fn receive_settings(&mut self) -> Option<ComPacketSettings>{
-        if self.socket.as_poll_item(zmq::POLLIN).is_readable() {
-            Option::from(serde_json::from_str::<ComPacketSettings>(
-                self.socket.recv_msg(zmq::DONTWAIT).unwrap().as_str().unwrap()
-            ).unwrap())
-        } else {None}
+    fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>{
+        match zmq::poll(&mut [self.socket.as_poll_item(zmq::POLLIN)], 10) {
+            Ok(event) if event > 0 => {
+                println!("Event: {}",event);
+                Some(self.socket.recv_multipart(0).unwrap())
+            }
+            _ => None
+        }
     }
 }

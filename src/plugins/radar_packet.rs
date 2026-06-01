@@ -76,12 +76,12 @@ pub struct ArchivedPlayback {
 /// The radar packet for communication over the settings channel.
 ///
 /// Contains an identity, optional archived time request, and optional settings state
+#[skip_serializing_none]
 #[derive(Serialize,Deserialize,Debug)]
 pub struct ComPacketSettings {
     pub(crate) identity:Identity,
-    pub(crate) first_time:bool,
     pub(crate) playback:Option<ArchivedPlayback>,
-    pub(crate) setting:Option<Setting>,
+    pub(crate) controls:Option<Vec<Setting>>,
 }
 
 #[skip_serializing_none]
@@ -108,12 +108,13 @@ pub trait Hdf5Object{
     fn from_hdf5() -> hdf5_metno::Result<Self> where Self: Sized;
 }
 
-pub trait ExportbleSetting {
-    fn get_setting(&self) -> Setting;
+pub trait ExportableSetting {
+    fn get_setting_vec(&self) -> Option<Vec<Setting>>;
+    fn get_setting(&self) -> Option<Setting>;
 }
 
-impl ExportbleSetting for State {
-    fn  get_setting(&self) -> Setting {
+impl ExportableSetting for State {
+    fn get_setting_vec(&self) -> Option<Vec<Setting>> {
         let mut vals = Vec::<Setting>::new();
         vals.push( Setting{
             name:"Angle".to_string(),
@@ -161,7 +162,7 @@ impl ExportbleSetting for State {
             step: None,
             values: None,
         });
-        vals.push(self.blanking.get_setting());
+        vals.push(self.blanking.get_setting().unwrap());
         vals.push( Setting{
             name:"Attenuation".to_string(),
             min: Option::from(0),
@@ -176,19 +177,14 @@ impl ExportbleSetting for State {
             step: None,
             values: None,
         });
-
-        Setting{
-            name: "Radar State".to_string(),
-            min: None,
-            max: None,
-            step: None,
-            values: Option::from(vals),
-        }
+        Some(vals)
     }
+    fn get_setting(&self) -> Option<Setting> {None}
 }
 
-impl ExportbleSetting for Blanking {
-    fn  get_setting(&self) -> Setting {
+impl ExportableSetting for Blanking {
+    fn get_setting_vec(&self) -> Option<Vec<Setting>> {None}
+    fn  get_setting(&self) -> Option<Setting> {
         let mut vals = Vec::<Setting>::new();
         vals.push( Setting{
             name:"Start Delay".to_string(),
@@ -226,13 +222,13 @@ impl ExportbleSetting for Blanking {
             values: None,
         });
 
-        Setting{
+        Some(Setting{
             name: "Blanking Region".to_string(),
             min: None,
             max: None,
             step: None,
             values: Option::from(vals),
-        }
+        })
     }
 }
 
