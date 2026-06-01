@@ -161,15 +161,19 @@ fn main() {
         }
     }
     if args.contains(&String::from("--demo")) || args.contains(&String::from("-e")){
+        let noisy;
+        if args.contains(&String::from("--noisy")) || args.contains(&String::from("-n"))
+            {noisy = true}
+        else {noisy = false;}
+        let mut demo = DemoData::new(noisy);
         let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
         let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
-        let mut demo = DemoData::new();
         loop {
             let p = demo.source_complex_data();
-            let s = serde_json::to_string(&p).unwrap();
-            println!("{s}");
+            //let s = serde_json::to_string(&p).unwrap();
+            //println!("{s}");
             client.broadcast(&p);
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(demo.delay));
         }
     }
 

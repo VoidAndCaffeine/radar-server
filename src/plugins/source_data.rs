@@ -1,8 +1,8 @@
-use std::convert::identity;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use num_complex::Complex;
 use rand::distr::Distribution;
 use hdf5_metno::{Dataset, File};
+use rand::rngs::ThreadRng;
 use rand_distr::Uniform;
 use crate::plugins::radar_packet::{Blanking, ComPacket, Identity, NetType, State, VERSION};
 
@@ -15,6 +15,9 @@ pub static NUM_SAMPLES:usize = 1000;
 pub struct DummyData;
 
 pub struct DemoData{
+    pub noisy: bool,
+    pub manual_delay: bool,
+    pub delay:u64,
     idx:usize,
     angle_ds: Vec<f64>,
     antenna_ds: Vec<f64>,
@@ -22,10 +25,11 @@ pub struct DemoData{
     imag_ds:Vec<Vec<i32>>,
     enable_ds:Vec<f64>,
     time_ds:Vec<f64>,
+    state:State,
 }
 
 impl DemoData{
-    pub fn new() -> DemoData{
+    pub fn new(noisy:bool) -> DemoData{
         let idx = 0;
         let file = File::open("demo/20260519_dabob_first.hdf5").expect("Failed to open demo file!");
         let angle_ds:Vec<f64> = file.dataset("angle").expect("Failed to open angle dataset")
@@ -42,14 +46,37 @@ impl DemoData{
             .read_1d::<f64>().expect("failed to read enable data").to_vec();
         let time_ds :Vec<f64>= file.dataset("time").expect("Failed to open time data")
             .read_1d::<f64>().expect("failed to read time data").to_vec();
+        if angle_ds.is_empty() || antenna_ds.is_empty() || real_ds.is_empty() || imag_ds.is_empty() || enable_ds.is_empty() || time_ds.is_empty() {
+            panic!("Invalid data length!");
+        }
         DemoData{
+            noisy,
+            manual_delay: false,
+            delay: 0,
             idx,
             angle_ds,
             antenna_ds,
             real_ds,
             imag_ds,
             enable_ds,
-            time_ds
+            time_ds,
+            state: State{
+                angle: 0.0,
+                antenna: 0,
+                enabled: true,
+                samples: NUM_SAMPLES as u64,
+                range: 0,
+                rotation_speed: 0.0,
+                blanking: Blanking{
+                    start_delay: 0.0,
+                    end_delay: 0.0,
+                    azimuth: 0.0,
+                    elevation: 0,
+                    region_id: 0,
+                },
+                attenuation:0.0,
+                tune:0.0,
+            }
         }
     }
 }
@@ -87,12 +114,10 @@ pub trait ComplexDataSource {
 
 impl ComplexDataSource for DummyData {
     fn source_complex_data(&mut self) -> ComPacket {
-        let mut rng = rand::rng();
-        let uniform = Uniform::new(i32::MIN, i32::MAX).expect("Invalid distribution");
         let mut byte_vec: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
         print!("nums:[");
         for _ in 0..NUM_SAMPLES {
-            let c = Complex::new(uniform.sample(&mut rng), uniform.sample(&mut rng));
+            let c = Complex::new(fastrand::i32(i32::MIN..=i32::MAX),fastrand::i32(i32::MIN..=i32::MAX));
             print!("({}, {}), ",c.re,c.im);
             byte_vec.extend_from_slice(&c.re.to_le_bytes());
             byte_vec.extend_from_slice(&c.im.to_le_bytes());
@@ -107,23 +132,7 @@ impl ComplexDataSource for DummyData {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)
                 .expect("Time before EPOCH not supported")
                 .as_secs_f64(),
-            state: State{
-                angle: 0.0,
-                antenna: 0,
-                enabled: true,
-                samples: NUM_SAMPLES as u64,
-                range: 0,
-                rotation_speed: 0.0,
-                blanking: Blanking{
-                    start_delay: 0.0,
-                    end_delay: 0.0,
-                    azimuth: 0.0,
-                    elevation: 0,
-                    region_id: 0,
-                },
-                attenuation:0.0,
-                tune:0.0,
-            },
+            state: self.get_state(),
             data:byte_vec,
         }
     }
@@ -136,31 +145,37 @@ impl ComplexDataSource for DemoData {
             version: VERSION.to_string(),
         };
         let timestamp = self.time_ds[self.idx];
-
-        let state: State = State{
-            angle:self.angle_ds[self.idx],
-            antenna: self.antenna_ds[self.idx] as u8,
-            enabled: self.enable_ds[self.idx] as u8 != 0,
-            samples: self.real_ds[self.idx].len() as u64,
-            range: 0,
-            rotation_speed: 0.0,
-            blanking: Blanking{
-                start_delay: 0.0,
-                end_delay: 0.0,
-                azimuth: 0.0,
-                elevation: 0,
-                region_id: 0,
-            },
-            attenuation:0.0,
-            tune:0.0,
+        let samples =self.real_ds[self.idx].len() as u64;
+        let dt = if self.idx < self.time_ds.len() - 1 {
+            self.time_ds[self.idx + 1] - timestamp
+        } else {
+            timestamp - self.time_ds[self.idx - 1]
         };
-        let mut data: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
-        for i in 0..NUM_SAMPLES {
-            let c = Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
-            data.extend_from_slice(&c.re.to_le_bytes());
-            data.extend_from_slice(&c.im.to_le_bytes());
+
+        self.state.angle = self.angle_ds[self.idx];
+        self.state.antenna = self.antenna_ds[self.idx] as u8;
+        self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
+        self.state.samples = samples;
+        let mut data: Vec<u8> = Vec::with_capacity(samples as usize);
+        if self.noisy {
+            for i in 0..samples as usize {
+                let noise = 255;
+                let c =
+                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
+                    + Complex::new(fastrand::i32(-noise..=noise),fastrand::i32(-noise..=noise));
+                data.extend_from_slice(&c.re.to_le_bytes());
+                data.extend_from_slice(&c.im.to_le_bytes());
+            }
+        } else {
+            for i in 0..samples as usize {
+                let c =
+                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
+                data.extend_from_slice(&c.re.to_le_bytes());
+                data.extend_from_slice(&c.im.to_le_bytes());
+            }
         }
-        self.idx += 1;
-        ComPacket{identity,timestamp,state,data}
+        if dt.is_sign_positive() && !self.manual_delay {self.delay = Duration::from_secs_f64(dt).as_millis() as u64;}
+        self.idx = (self.idx + 1) % self.real_ds.len();
+        ComPacket{identity,timestamp,state:self.state,data}
     }
 }
