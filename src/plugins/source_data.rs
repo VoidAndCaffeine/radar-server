@@ -13,7 +13,7 @@ pub struct DummyData;
 
 pub struct DemoData{
     pub manual_delay: bool,
-    pub delay:u64,
+    pub delay:u16,
     idx:usize,
     angle_ds: Vec<f64>,
     antenna_ds: Vec<f64>,
@@ -60,18 +60,23 @@ impl DemoData{
                 antenna: 0,
                 enabled: true,
                 samples: NUM_SAMPLES as u64,
-                rotation_speed: 0.0,
+                rotation_rate: 0.0,
             }
         }
     }
-}
-
-/// Organizational struct for DummyData.
-pub struct ArchivedData{
-    pub(crate) packet_time: SystemTime,
-    pub(crate) time_next: Option<SystemTime>,
-    pub(crate) rate: f64,
-    pub(crate) file: File,
+    pub fn update_state(&mut self, conf: SettingData){
+        if conf.playback_delay.is_some() {
+            let pd = conf.playback_delay.unwrap();
+            if pd != 0 {
+                println!("Setting manual delay to {pd}");
+                self.manual_delay = true;
+                self.delay = pd;
+            } else {
+                println!("Setting manual delay to auto");
+                self.manual_delay = false;
+            }
+        }
+    }
 }
 
 pub trait ComplexDataSource {
@@ -82,7 +87,7 @@ pub trait ComplexDataSource {
             antenna: 0,
             enabled: true,
             samples: NUM_SAMPLES as u64,
-            rotation_speed: 0.0,
+            rotation_rate: 0.0,
         }
     }
 }
@@ -140,7 +145,7 @@ impl ComplexDataSource for DemoData {
             data.extend_from_slice(&c.re.to_le_bytes());
             data.extend_from_slice(&c.im.to_le_bytes());
         }
-        if dt.is_sign_positive() && !self.manual_delay {self.delay = Duration::from_secs_f64(dt).as_millis() as u64;}
+        if dt.is_sign_positive() && !self.manual_delay {self.delay = Duration::from_secs_f64(dt).as_millis() as u16;}
         self.idx = (self.idx + 1) % self.real_ds.len();
         ComPacket{identity,timestamp,state:self.state,data}
     }

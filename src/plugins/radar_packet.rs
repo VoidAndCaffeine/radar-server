@@ -15,13 +15,12 @@ pub enum NetType {
     Archiver,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Debug, PartialEq,Clone)]
 #[serde(untagged)]
-pub enum Settings {
-    SettingsInfo(SettingsInfo),
-    SettingsData(SettingsData),
+pub enum SettingType{
+    SettingData(SettingData),
+    SettingInfo(Vec<SettingInfo>),
 }
-
 /// Identity info contains the network type and server version.
 #[derive(Serialize,Deserialize,Debug,Clone)]
 pub struct Identity {
@@ -39,7 +38,7 @@ pub struct State {
     pub(crate) antenna:u8,
     pub(crate) enabled:bool,
     pub(crate) samples:u64,
-    pub(crate) rotation_speed:f64,
+    pub(crate) rotation_rate:f64,
 }
 
 /// The radar data packet for use with dummy complex i16 data.
@@ -54,51 +53,36 @@ pub struct ComPacket {
     pub(crate) data:Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ServerSetting {
-    samples:u16,
-    sample_rate:f64,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArchiverSetting {
-    playback_delay:u16,
-}
-
-#[skip_serializing_none]
-#[derive(Serialize,Deserialize,Debug,Clone)]
-pub struct SettingsData {
-    pub(crate) identity:Identity,
-    pub(crate) server_controls:Option<ServerSetting>,
-    pub(crate) controls:Option<ArchiverSetting>,
-}
-
-/// The radar packet for communication over the settings channel.
-///
-/// Contains an identity, optional archived time request, and optional settings state
-#[skip_serializing_none]
-#[derive(Serialize,Deserialize,Debug,Clone)]
-pub struct SettingsInfo {
-    pub(crate) identity:Identity,
-    pub(crate) server_controls:Option<Vec<SettingData>>,
-    pub(crate) controls:Option<Vec<SettingData>>,
-}
-
-#[skip_serializing_none]
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SettingData {
+    pub samples:Option<u16>,
+    pub sample_rate:Option<f64>,
+    pub playback_delay:Option<u16>,
+}
+
+
+#[derive(Serialize,Deserialize,Debug,Clone)]
+pub struct SettingsPacket {
+    pub(crate) identity:Identity,
+    pub(crate) controls:SettingType,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct SettingInfo {
     id: String,
     name:String,
     min:Option<String>,
     max:Option<String>,
     step:Option<String>,
     unit:Option<String>,
-    values:Option<Vec<SettingData>>,
+    values:Option<Vec<SettingInfo>>,
 }
 
-impl ArchiverSetting {
-    pub fn get_archiver_settings() -> Option<Vec<SettingData>> {
-        let mut vals = Vec::<SettingData>::new();
-        vals.push(SettingData {
+impl SettingInfo {
+    pub fn get_archiver_settings() -> Vec<SettingInfo> {
+        let mut vals = Vec::<SettingInfo>::new();
+        vals.push(SettingInfo {
             id: "playback_delay".to_string(),
             name: "Playback Delay".to_string(),
             min: Some("0".to_string()),
@@ -107,15 +91,11 @@ impl ArchiverSetting {
             unit: Some("Ms".to_string()),
             values: None,
         });
-        Some(vals)
+        vals
     }
-}
-
-
-impl ServerSetting {
-    pub fn get_server_settings() -> Option<Vec<SettingData>> {
-        let mut vals = Vec::<SettingData>::new();
-        vals.push(SettingData {
+    pub fn get_server_settings() -> Vec<SettingInfo> {
+        let mut vals = Vec::<SettingInfo>::new();
+        vals.push(SettingInfo {
             id: "samples".to_string(),
             name: "Samples".to_string(),
             min: Some("0".to_string()),
@@ -124,7 +104,7 @@ impl ServerSetting {
             unit: None,
             values: None,
         });
-        vals.push(SettingData {
+        vals.push(SettingInfo {
             id: "sample_rate".to_string(),
             name: "Sample Rate".to_string(),
             min: Some("0".to_string()),
@@ -133,7 +113,7 @@ impl ServerSetting {
             unit: Some("Samples/Sec".to_string()),
             values: None,
         });
-        Some(vals)
+        vals
     }
 }
 

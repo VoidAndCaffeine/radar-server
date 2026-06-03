@@ -95,84 +95,99 @@ fn main() {
 
     if args.contains(&String::from("--dummy")) || args.contains(&String::from("-d")) {
         println!("Running Dummy Server mode.");
+        let identity = Identity {
+            net_type: NetType::Server,
+            version: VERSION.to_string(),
+        };
         let mut demo = DemoData::new();
         let mut server: Connection = Server::new_broadcast([WORLD_ADDRESS, RADAR_PORT].concat().as_str());
         let mut settings_channel: Connection = SettingsChannel::new_dealer([ARCHIVER_ADDRESS,CONTROL_PORT].concat().as_str());
         let mut settings_check;
         settings_channel.send_settings(
             "".as_bytes(),
-            &Settings::SettingsInfo(SettingsInfo {
-                identity: Identity {
-                    net_type: NetType::Server,
-                    version: VERSION.to_string(),
-                },
-                server_controls: ServerSetting::get_server_settings(),
-                controls: None,
-            }));
+            SettingsPacket {
+                identity: identity.clone(),
+                controls: SettingType::SettingInfo(SettingInfo::get_server_settings()),
+            });
         loop {
             settings_check = settings_channel.check_settings();
             if settings_check.is_some() {
                 let message = settings_check.unwrap();
-                for i in 0..message.len() {
-                    match serde_json::from_slice::<SettingData>(message[i].as_slice()) {
-                        Ok(set) => {
-                        }
-                        Err(_) => {}
+                match serde_json::from_slice::<SettingsPacket>(message[1].as_slice()) {
+                    Ok(p) => match p.controls {
+                        SettingType::SettingData(s) => { demo.update_state(s); }
+                        _ => {}
                     }
+                    _ => {}
                 }
             }
             let p = demo.source_complex_data();
             server.broadcast(&p);
-            thread::sleep(Duration::from_millis(demo.delay));
+            thread::sleep(Duration::from_millis(demo.delay as u64));
         }
     }
 
     if args.contains(&String::from("--archive")) || args.contains(&String::from("-a")) {
+        let identity = Identity {
+            net_type: NetType::Archiver,
+            version: VERSION.to_string(),
+        };
         let mut subscription: Connection = Subscriber::new_subscription([RADAR_ADDRESS, RADAR_PORT].concat().as_str());
         let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
         let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
         let mut clients = HashSet::new();
         let mut servers = HashSet::new();
         let mut settings_check;
-        let mut settings = SettingsInfo {
-            identity: Identity {
-                net_type: NetType::Archiver,
-                version: VERSION.to_string(),
-            },
-            server_controls: None,
-            controls: ArchiverSetting::get_archiver_settings(),
-        };
+        let mut setting_info = SettingInfo::get_archiver_settings();
 
         loop {
             settings_check = settings_channel.check_settings();
             if settings_check.is_some() {
                 let message = settings_check.unwrap();
-                match serde_json::from_slice::<Settings>(&message[1].as_slice()) {
-                    Ok(Settings::SettingsInfo(s)) => {
-                        if s.identity.net_type == NetType::Server {
-                            println!("Adding server {:?} to known servers", message[0]);
+                match serde_json::from_slice::<SettingsPacket>(message[1].as_slice()) {
+                    Ok(p) => match p.clone().controls{
+                        SettingType::SettingInfo(s) => if p.identity.net_type == NetType::Server {
+                            setting_info.extend_from_slice(s.as_slice());
+
+                            println!("Adding server {:?} to known servers.", message[0]);
                             servers.insert(message[0].clone());
-                            settings.server_controls = s.server_controls.clone();
+                        }
+                        SettingType::SettingData(s) => {
+                            for s_id in servers.clone(){
+                                settings_channel.send_settings(s_id.as_slice(),p.clone());
+                                //ToDo: update archiver settings
+                            }
                         }
                     }
-                    Ok(Settings::SettingsData(s)) => {
-                        if s.server_controls.is_some(){}
-                        if s.controls.is_some(){}
-                    }
-                    Err(_) => if message[1].len() == 0 && !clients.contains(&message[0]) {
-                        println!("Adding client {:?} to known clients", message[0]);
-                        clients.insert(message[0].clone());
+                    _ => {
+                        if message[1].len() == 0 {
+                            settings_channel.send_settings(
+                                message[0].as_slice(),
+                                SettingsPacket{
+                                    identity: identity.clone(),
+                                    controls: SettingType::SettingInfo(setting_info.clone()),
+                                });
+                            println!("Adding client {:?} to known clients.", message[0]);
+                            clients.insert(message[0].clone());
+                        }
                     }
                 }
-                for dealer_id in clients.clone() {
+                for i in 1..message.len(){
+                    println!("Message: {}", std::str::from_utf8(message[i].as_slice()).unwrap());
+                }
+
+                for c_id in clients.clone() {
                     settings_channel.send_settings(
-                        dealer_id.as_slice(),
-                        &Settings::SettingsInfo(settings.clone()),
-                    );
+                        c_id.as_slice(),
+                        SettingsPacket{
+                            identity: identity.clone(),
+                            controls: SettingType::SettingInfo(setting_info.clone()),
+                        });
                 }
             }
             let receive_packet = subscription.subscribe_check();
             if receive_packet.is_some() {
+                client.broadcast(&receive_packet.unwrap());
             }
         }
     }

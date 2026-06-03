@@ -27,7 +27,7 @@ pub trait Subscriber {
 pub trait SettingsChannel {
     fn new_router(ip:&str) -> Self;
     fn new_dealer(ip:&str) -> Self;
-    fn send_settings(&mut self,dealer_id:&[u8], settings: &Settings);
+    fn send_settings(&mut self,dealer_id:&[u8], settings: SettingsPacket);
     fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>;
 }
 
@@ -83,11 +83,11 @@ impl SettingsChannel for Connection {
         println!("Settings channel dealer connected to {}",ip);
         Connection {context, socket}
     }
-    fn send_settings(&mut self, dealer_id:&[u8], settings: &Settings) {
+    fn send_settings(&mut self, dealer_id:&[u8], settings: SettingsPacket) {
         if dealer_id != "".as_bytes(){
             self.socket.send(dealer_id, zmq::SNDMORE).expect("failed to target dealer");
         }
-        let settings_json = serde_json::to_string(settings).expect("Failed to serialize settings");
+        let settings_json = serde_json::to_string(&settings).expect("Failed to serialize settings");
         self.socket.send(&settings_json, 0)
             .expect("Failed to send packet");
         println!("To Dealer_id: {:?}\nSent: {settings_json}",dealer_id);
