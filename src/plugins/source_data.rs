@@ -1,3 +1,4 @@
+use std::io::repeat;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use num_complex::Complex;
 use hdf5_metno::{File};
@@ -15,6 +16,12 @@ pub struct DemoData{
     pub manual_delay: bool,
     pub delay:u16,
     idx:usize,
+    idx_ln:usize,
+    idx_a0:usize,
+    idx_a1:usize,
+    idx_a2:usize,
+    idx_a3:usize,
+    last_dt:f64,
     angle_ds: Vec<f64>,
     antenna_ds: Vec<f64>,
     real_ds:Vec<Vec<i32>>,
@@ -26,7 +33,6 @@ pub struct DemoData{
 
 impl DemoData{
     pub fn new() -> DemoData{
-        let idx = 0;
         let file = File::open("demo/20260519_dabob_first.hdf5").expect("Failed to open demo file!");
         let angle_ds:Vec<f64> = file.dataset("angle").expect("Failed to open angle dataset")
             .read_1d::<f64>().expect("Failed to read angle dataset").to_vec();
@@ -46,9 +52,15 @@ impl DemoData{
             panic!("Invalid data length!");
         }
         DemoData{
-            manual_delay: false,
-            delay: 0,
-            idx,
+            manual_delay: true,
+            delay: 100,
+            idx:0,
+            idx_ln:0,
+            idx_a0:0,
+            idx_a1:32,
+            idx_a2:64,
+            idx_a3:96,
+            last_dt:0.0,
             angle_ds,
             antenna_ds,
             real_ds,
@@ -125,28 +137,64 @@ impl ComplexDataSource for DemoData {
             version: VERSION.to_string(),
         };
         let timestamp = self.time_ds[self.idx];
+        let angle = self.angle_ds[self.idx];
         let samples =self.real_ds[self.idx].len() as u64;
-        let dt = if self.idx < self.time_ds.len() - 1 {
-            self.time_ds[self.idx + 1] - timestamp
-        } else {
-            timestamp - self.time_ds[self.idx - 1]
-        };
 
-        self.state.angle = self.angle_ds[self.idx];
+        self.state.rotation_rate = 5.0;
+        self.state.angle = angle;
         self.state.antenna = self.antenna_ds[self.idx] as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
         self.state.samples = samples;
         let mut data: Vec<u8> = Vec::with_capacity(samples as usize);
-        for i in 0..samples as usize {
-            let noise = 255;
-            let c =
-                Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
-                    + Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
-            data.extend_from_slice(&c.re.to_le_bytes());
-            data.extend_from_slice(&c.im.to_le_bytes());
+
+        let mut ii = 0;
+        println!();
+        while self.idx + ii < self.real_ds.len() && self.antenna_ds[self.idx + ii] == self.antenna_ds[self.idx] {
+            for i in 0..samples as usize {
+                let noise = 25;
+                let c =
+                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
+                        + Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
+                data.extend_from_slice(&c.re.to_le_bytes());
+                data.extend_from_slice(&c.im.to_le_bytes());
+                print!("{}",c);
+            }
+            ii += 1;
         }
-        if dt.is_sign_positive() && !self.manual_delay {self.delay = Duration::from_secs_f64(dt).as_millis() as u16;}
-        self.idx = (self.idx + 1) % self.real_ds.len();
+        println!();
+
+        if !self.manual_delay {self.delay = Duration::from_secs_f64(0.16).as_millis() as u16;}
+        let ant1 = self.antenna_ds[self.idx] as u8;
+        if (ant1 == 0) {
+            self.idx_a0 = self.idx;
+        }
+        if (ant1 == 1) {
+            self.idx_a1 = self.idx;
+        }
+        if (ant1 == 2) {
+            self.idx_a2 = self.idx;
+        }
+        if (ant1 == 3) {
+            self.idx_a3 = self.idx;
+        }
+        let ant2 = self.antenna_ds[self.idx + ii] as u8;
+        if (ant2 == 0) {
+            self.idx_ln = self.idx_a0;
+        }
+        if (ant2 == 1) {
+            self.idx_ln = self.idx_a1;
+        }
+        if (ant2 == 2) {
+            self.idx_ln = self.idx_a2;
+        }
+        if (ant2 == 3) {
+            self.idx_ln = self.idx_a3;
+        }
+
+        self.idx = (self.idx + ii) % self.real_ds.len();
+        if self.idx == 0 {
+            println!("repeat");
+        }
         ComPacket{identity,timestamp,state:self.state,data}
     }
 }
