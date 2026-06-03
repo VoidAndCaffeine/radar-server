@@ -48,12 +48,13 @@ use std::{env, thread};
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
+use serde_json::Value;
 use crate::plugins::publish_data::*;
 
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
 use crate::plugins::radar_packet::*;
-use crate::plugins::radar_packet::NetType::Archiver;
+use crate::plugins::radar_packet::NetType;
 use crate::plugins::source_data::*;
 
 static CLIENT_PORT: &str = "5555";
@@ -94,83 +95,85 @@ fn main() {
 
     if args.contains(&String::from("--dummy")) || args.contains(&String::from("-d")) {
         println!("Running Dummy Server mode.");
+        let mut demo = DemoData::new();
         let mut server: Connection = Server::new_broadcast([WORLD_ADDRESS, RADAR_PORT].concat().as_str());
-        let mut settings_channel: Connection = SettingsChannel::new_dealer([ARCHIVER_ADDRESS,CONTROL_PORT].concat().as_str(), "DummyServer");
-        let mut settings: Option<ComPacketSettings>;
-        let mut dummy = DummyData;
-
+        let mut settings_channel: Connection = SettingsChannel::new_dealer([ARCHIVER_ADDRESS,CONTROL_PORT].concat().as_str());
+        let mut settings_check;
+        settings_channel.send_settings(
+            "".as_bytes(),
+            &Settings::SettingsInfo(SettingsInfo {
+                identity: Identity {
+                    net_type: NetType::Server,
+                    version: VERSION.to_string(),
+                },
+                server_controls: ServerSetting::get_server_settings(),
+                controls: None,
+            }));
         loop {
-            server.broadcast(&dummy.source_complex_data());
-            thread::sleep(Duration::from_millis(1000));
+            settings_check = settings_channel.check_settings();
+            if settings_check.is_some() {
+                let message = settings_check.unwrap();
+                for i in 0..message.len() {
+                    match serde_json::from_slice::<SettingData>(message[i].as_slice()) {
+                        Ok(set) => {
+                        }
+                        Err(_) => {}
+                    }
+                }
+            }
+            let p = demo.source_complex_data();
+            server.broadcast(&p);
+            thread::sleep(Duration::from_millis(demo.delay));
         }
     }
 
     if args.contains(&String::from("--archive")) || args.contains(&String::from("-a")) {
         let mut subscription: Connection = Subscriber::new_subscription([RADAR_ADDRESS, RADAR_PORT].concat().as_str());
-        let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
         let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
-        let mut t_playback = Option::from(SystemTime::now());
-        let mut archived = ArchivedData{
-            packet_time: SystemTime::now(),
-            time_next: None,
-            rate: 0f64,
-            file: File::open_rw("radar_archive.h5").or_else(|_| File::create("radar_archive.h5"))
-                .expect("Unable to open radar_archive.h5 file")
+        let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
+        let mut clients = HashSet::new();
+        let mut servers = HashSet::new();
+        let mut settings_check;
+        let mut settings = SettingsInfo {
+            identity: Identity {
+                net_type: NetType::Archiver,
+                version: VERSION.to_string(),
+            },
+            server_controls: None,
+            controls: ArchiverSetting::get_archiver_settings(),
         };
+
         loop {
-            let receive_packet = subscription.subscribe_check();
-            //receive_packet.to_hdf5(&archived.file).expect("Unable to write to file");
-            if archived.time_next.is_none() {
-                println!("Forwarding Live Packet.");
-                client.broadcast(&receive_packet);
-                continue;
-            } else {
-                archived.time_next = t_playback;
-                //let to_send = archived.source_complex_data();
-                //client.broadcast(&to_send);
-                continue;
-            }
-        }
-    }
-    if args.contains(&String::from("--demo")) || args.contains(&String::from("-e")){
-        let noisy;
-        if args.contains(&String::from("--noisy")) || args.contains(&String::from("-n"))
-            {noisy = true}
-        else {noisy = false;}
-        let mut demo = DemoData::new(noisy);
-        let mut client: Connection = Server::new_broadcast([WORLD_ADDRESS, CLIENT_PORT].concat().as_str());
-        let mut settings_channel: Connection = SettingsChannel::new_router([WORLD_ADDRESS,CONTROL_PORT].concat().as_str());
-        let mut settings_dealers = HashSet::new();
-        loop {
-            {
-                let settings_check = settings_channel.check_settings();
-                if settings_check.is_some() {
-                    let message = settings_check.unwrap();
-                    if !settings_dealers.contains(&message[0]){
-                        println!("Adding dealer {:?} to known dealers",message[0]);
-                        settings_dealers.insert(message[0].clone());
-                        let settings = ComPacketSettings{
-                            identity: Identity{
-                                net_type:Archiver,
-                                version:VERSION.to_string()
-                            },
-                            playback: None,
-                            controls: demo.get_state().get_default_settings()
-                        };
-                        settings_channel.send_settings(
-                            message[0].clone(),
-                            &settings
-                        );
-                        println!("Sent settings{} to {:?}",serde_json::to_string(&settings).unwrap(),message[0]);
-                    }else {
-                        let m = &message[1];
-                        println!("{}", str::from_utf8(&m).unwrap());
+            settings_check = settings_channel.check_settings();
+            if settings_check.is_some() {
+                let message = settings_check.unwrap();
+                match serde_json::from_slice::<Settings>(&message[1].as_slice()) {
+                    Ok(Settings::SettingsInfo(s)) => {
+                        if s.identity.net_type == NetType::Server {
+                            println!("Adding server {:?} to known servers", message[0]);
+                            servers.insert(message[0].clone());
+                            settings.server_controls = s.server_controls.clone();
+                        }
+                    }
+                    Ok(Settings::SettingsData(s)) => {
+                        if s.server_controls.is_some(){}
+                        if s.controls.is_some(){}
+                    }
+                    Err(_) => if message[1].len() == 0 && !clients.contains(&message[0]) {
+                        println!("Adding client {:?} to known clients", message[0]);
+                        clients.insert(message[0].clone());
                     }
                 }
+                for dealer_id in clients.clone() {
+                    settings_channel.send_settings(
+                        dealer_id.as_slice(),
+                        &Settings::SettingsInfo(settings.clone()),
+                    );
+                }
             }
-            let p = demo.source_complex_data();
-            client.broadcast(&p);
-            thread::sleep(Duration::from_millis(demo.delay));
+            let receive_packet = subscription.subscribe_check();
+            if receive_packet.is_some() {
+            }
         }
     }
 

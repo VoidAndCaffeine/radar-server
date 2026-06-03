@@ -21,13 +21,13 @@ pub trait Subscriber {
     /// Creates a new Subscriber.
     fn new_subscription(ip:&str) -> Self;
     /// Checks for new packets on the connection.
-    fn subscribe_check(&mut self) -> ComPacket;
+    fn subscribe_check(&mut self) -> Option<ComPacket>;
 }
 
 pub trait SettingsChannel {
     fn new_router(ip:&str) -> Self;
-    fn new_dealer(ip:&str,whoami:&str) -> Self;
-    fn send_settings(&mut self,dealerid:Vec<u8>, settings: &ComPacketSettings);
+    fn new_dealer(ip:&str) -> Self;
+    fn send_settings(&mut self,dealer_id:&[u8], settings: &Settings);
     fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>;
 }
 
@@ -55,9 +55,15 @@ impl Subscriber for Connection {
         println!("Subscribe complete");
         Connection {context, socket}
     }
-    fn subscribe_check(&mut self) -> ComPacket{
-        let message = self.socket.recv_msg(0).unwrap();
-        rmp_serde::from_slice(&message).expect("Could not deserialize message.")
+    fn subscribe_check(&mut self) -> Option<ComPacket>{
+        match zmq::poll(&mut [self.socket.as_poll_item(zmq::POLLIN)], 0) {
+            Ok(event) if event > 0 =>
+                match rmp_serde::from_slice(&self.socket.recv_msg(0).unwrap()){
+                    Ok(packet) => Some(packet),
+                    _ => None
+                }
+            _ => None
+        }
     }
 }
 
@@ -69,22 +75,26 @@ impl SettingsChannel for Connection {
         println!("Settings channel router bound to {}",ip);
         Connection {context, socket }
     }
-    fn new_dealer(ip:&str,whoami:&str) -> Connection {
+    fn new_dealer(ip:&str) -> Connection {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::DEALER).unwrap();
-        socket.set_identity(whoami.as_bytes()).expect("Failed to set identity");
         socket.connect(ip).expect("Failed to connect to socket");
-        println!("Settings channel dealer {} connected to {}",whoami,ip);
+        //socket.send("".as_bytes(),0).expect("Failed to send packet.");
+        println!("Settings channel dealer connected to {}",ip);
         Connection {context, socket}
     }
-    fn send_settings(&mut self, dealer_id:Vec<u8>, settings:&ComPacketSettings) {
-        self.socket.send(dealer_id, zmq::SNDMORE).expect("failed to target dealer");
-        self.socket.send(&serde_json::to_string(settings).expect("Failed to serialize settings"), 0)
+    fn send_settings(&mut self, dealer_id:&[u8], settings: &Settings) {
+        if dealer_id != "".as_bytes(){
+            self.socket.send(dealer_id, zmq::SNDMORE).expect("failed to target dealer");
+        }
+        let settings_json = serde_json::to_string(settings).expect("Failed to serialize settings");
+        self.socket.send(&settings_json, 0)
             .expect("Failed to send packet");
+        println!("To Dealer_id: {:?}\nSent: {settings_json}",dealer_id);
     }
 
     fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>{
-        match zmq::poll(&mut [self.socket.as_poll_item(zmq::POLLIN)], 10) {
+        match zmq::poll(&mut [self.socket.as_poll_item(zmq::POLLIN)], 0) {
             Ok(event) if event > 0 => {
                 Some(self.socket.recv_multipart(0).unwrap())
             }

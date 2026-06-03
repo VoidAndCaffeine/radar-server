@@ -12,7 +12,6 @@ pub static NUM_SAMPLES:usize = 1000;
 pub struct DummyData;
 
 pub struct DemoData{
-    pub noisy: bool,
     pub manual_delay: bool,
     pub delay:u64,
     idx:usize,
@@ -26,7 +25,7 @@ pub struct DemoData{
 }
 
 impl DemoData{
-    pub fn new(noisy:bool) -> DemoData{
+    pub fn new() -> DemoData{
         let idx = 0;
         let file = File::open("demo/20260519_dabob_first.hdf5").expect("Failed to open demo file!");
         let angle_ds:Vec<f64> = file.dataset("angle").expect("Failed to open angle dataset")
@@ -47,7 +46,6 @@ impl DemoData{
             panic!("Invalid data length!");
         }
         DemoData{
-            noisy,
             manual_delay: false,
             delay: 0,
             idx,
@@ -129,26 +127,18 @@ impl ComplexDataSource for DemoData {
             timestamp - self.time_ds[self.idx - 1]
         };
 
+        self.state.angle = self.angle_ds[self.idx];
         self.state.antenna = self.antenna_ds[self.idx] as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
         self.state.samples = samples;
         let mut data: Vec<u8> = Vec::with_capacity(samples as usize);
-        if self.noisy {
-            for i in 0..samples as usize {
-                let noise = 255;
-                let c =
-                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
-                    + Complex::new(fastrand::i32(-noise..=noise),fastrand::i32(-noise..=noise));
-                data.extend_from_slice(&c.re.to_le_bytes());
-                data.extend_from_slice(&c.im.to_le_bytes());
-            }
-        } else {
-            for i in 0..samples as usize {
-                let c =
-                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
-                data.extend_from_slice(&c.re.to_le_bytes());
-                data.extend_from_slice(&c.im.to_le_bytes());
-            }
+        for i in 0..samples as usize {
+            let noise = 255;
+            let c =
+                Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
+                    + Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
+            data.extend_from_slice(&c.re.to_le_bytes());
+            data.extend_from_slice(&c.im.to_le_bytes());
         }
         if dt.is_sign_positive() && !self.manual_delay {self.delay = Duration::from_secs_f64(dt).as_millis() as u64;}
         self.idx = (self.idx + 1) % self.real_ds.len();

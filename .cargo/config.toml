@@ -1,7 +1,2 @@
 [target.'cfg(all(windows, target_env = "msvc"))']
-rustflags = [
-	"-l",
-	"advapi32",
-	"-C",
-	"link-args=-static -static-libgcc -static-libstdc++",
-]
+rustflags = ["-l","advapi32",]
