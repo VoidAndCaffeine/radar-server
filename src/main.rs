@@ -123,7 +123,7 @@ fn main() {
             }
             let p = demo.source_complex_data();
             server.broadcast(&p);
-            thread::sleep(Duration::from_millis(demo.delay as u64));
+            thread::sleep(Duration::from_millis(demo.delay as u64 + 100));
         }
     }
 
