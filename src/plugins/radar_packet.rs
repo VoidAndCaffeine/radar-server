@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{skip_serializing_none};
 use hdf5_metno::{Extent, File, H5Type};
 use num_complex::Complex;
-use crate::consts::NUM_SAMPLES;
+use crate::consts::{DATA_CHUNK_SIZE};
 use crate::plugins::radar_packet::NetType::Archiver;
 
 /// Server binary version sourced from cargo at compile time.
@@ -72,7 +72,7 @@ pub struct ComPacket {
 
 #[derive(H5Type,Serialize,Clone,Copy)]
 #[repr(C)]
-struct HDF5Packet {
+pub struct HDF5Packet {
     timestamp:f64,
     state:State,
 }
@@ -179,21 +179,31 @@ impl Hdf5Object for ComPacket {
             Err(_) => {
                 println!("creating new data dataset");
                 file.new_dataset::<Complex<i32>>()
-                    .chunk((1,NUM_SAMPLES))
-                    .shape((1..,NUM_SAMPLES))
+                    .chunk((1,DATA_CHUNK_SIZE))
+                    .shape((1..,DATA_CHUNK_SIZE))
                     .create("data").expect("failed to create new dataset for timestamps")
             }
         };
 
         let ds:&[Complex<i32>] = cast_slice(self.data.as_slice());
 
-        let idx = timestamps.size();
-        timestamps.resize(idx + 1)?;
-        metadata.resize(idx + 1)?;
-        data.resize((idx+1,NUM_SAMPLES))?;
-        timestamps.write_slice(&[self.timestamp],idx..idx+1)?;
-        metadata.write_slice(&[HDF5Packet::from(self)],idx..idx+1)?;
-        data.write_slice(ds, (idx,..))?;
+        let mut idx = timestamps.size();
+        let mut written = 0usize;
+        let mut writes = 0;
+
+        while written < ds.len() {
+            let slice = &ds[written..DATA_CHUNK_SIZE + (DATA_CHUNK_SIZE * writes)];
+            timestamps.resize(idx + 1)?;
+            metadata.resize(idx + 1)?;
+            data.resize((idx+1,DATA_CHUNK_SIZE))?;
+            timestamps.write_slice(&[self.timestamp],idx..idx+1)?;
+            metadata.write_slice(&[HDF5Packet::from(self)],idx..idx+1)?;
+            data.write_slice(slice, (idx,..))?;
+            written += DATA_CHUNK_SIZE;
+            writes += 1;
+            idx += 1;
+        }
+
         file.flush()?;
         Ok(())
     }
