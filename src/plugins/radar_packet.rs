@@ -271,7 +271,7 @@ impl Hdf5Object for ComPacket {
             Ok(ds) => ds,
             Err(e) => return Err(e)
         };
-        let meta:HDF5Packet = metadata.read_slice((idx..)).expect("Failed to read metadata").to_vec()[0];
+        let meta:HDF5Packet = metadata.read_slice(idx..).expect("Failed to read metadata").to_vec()[0];
         let data:Vec<Complex<i32>> = data.read_slice((idx,..)).expect("failed to read data").to_vec();
 
         Ok(ComPacket{

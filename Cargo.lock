@@ -729,7 +729,6 @@ dependencies = [
  "dirs",
  "fastrand",
  "hdf5-metno",
- "ndarray",
  "num-complex",
  "rmp-serde",
  "serde",

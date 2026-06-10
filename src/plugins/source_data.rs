@@ -5,6 +5,7 @@ use hdf5_metno::{File};
 use crate::plugins::radar_packet::*;
 
 /// Organizational struct for DummyData.
+#[allow(unused)]
 pub struct DummyData;
 
 #[derive(Copy, Clone)]
@@ -140,6 +141,7 @@ impl DemoData{
 
 pub trait ComplexDataSource {
     fn source_complex_data(&mut self) -> ComPacket;
+    #[allow(unused)]
     fn get_state(&self) -> State{
         State{
             angle: 0.0,
@@ -194,7 +196,7 @@ impl ComplexDataSource for DemoData {
         let mut data: Vec<u8> = Vec::with_capacity(1024);
 
         for i in (self.data_offset as usize * 1024)..1024 + (self.data_offset as usize * 1024) {
-            let noise = 25;
+            //let noise = 25;
             let c =
                 Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
                     //+ Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));

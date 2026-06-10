@@ -1,5 +1,3 @@
-//!
-
 /// Creates, modifies, and reformats radar packets.
 pub mod radar_packet;
 

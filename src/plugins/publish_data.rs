@@ -4,6 +4,7 @@ use rmp_serde::{to_vec_named};
 
 /// Contains the context and socket for a ZMQ connection
 pub struct Connection {
+    #[allow(dead_code)]
     context: zmq::Context,
     socket: zmq::Socket,
 }
