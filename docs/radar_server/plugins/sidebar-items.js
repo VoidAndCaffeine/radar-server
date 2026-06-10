@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["publish_data","radar_packet","source_data"]};

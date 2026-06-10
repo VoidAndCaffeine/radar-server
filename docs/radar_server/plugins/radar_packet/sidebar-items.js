@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["NetType"],"static":["VERSION"],"struct":["Blanking","ComPacketFloat","CryptInfo","Identity","State"],"trait":["Hdf5Object"]};
