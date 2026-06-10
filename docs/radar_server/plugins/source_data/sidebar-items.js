@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"static":["NUM_SAMPLES"],"struct":["DummyNormalData"],"trait":["FloatDataSource"]};
