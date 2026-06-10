@@ -217,7 +217,7 @@ impl Hdf5Object for ComPacket {
             },
             timestamp: meta.timestamp,
             state:meta.state,
-            data:pod_collect_to_vec(data.as_slice())
+            data:pod_collect_to_vec(data.as_slice())  // ToDo: i think this involves a clone, there has to be a better way
         })
     }
 }
