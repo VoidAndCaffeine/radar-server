@@ -8,5 +8,3 @@ install cross:
 `cross build --release`
 ### Building for aarch64-unknown-linux
 `cross build --target aarch64-unknown-linux-musl --release`
-### Building for x86\_64 Windows
-`cross build --target x86_64-pc-windows --release`
