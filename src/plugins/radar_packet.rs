@@ -20,6 +20,7 @@ pub enum NetType {
     Archiver,
 }
 
+/// An enum to denote when we are sending SettingsInfo or receiving SettingData
 #[derive(Serialize,Deserialize,Debug, PartialEq,Clone)]
 #[serde(untagged)]
 pub enum SettingType{
@@ -34,8 +35,6 @@ pub struct Identity {
 }
 
 /// The state of the radar at the time of recording.
-///
-/// ToDo: NUM_SAMPLES should be stored here probably.
 #[derive(H5Type,Clone,Copy,Serialize,Deserialize,Debug)]
 #[repr(C)]
 pub struct State {
@@ -46,7 +45,7 @@ pub struct State {
     pub(crate) rotation_rate:f64,
 }
 
-
+/// The current settings understood by the Archiver and Server ToDo: these could probably be split.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SettingData {
     pub samples:Option<u16>,
@@ -55,6 +54,7 @@ pub struct SettingData {
 }
 
 
+/// The packet expected from any settings channel communication
 #[derive(Serialize,Deserialize,Debug,Clone)]
 pub struct SettingsPacket {
     pub(crate) identity:Identity,
@@ -72,12 +72,26 @@ pub struct ComPacket {
     pub(crate) data:Vec<u8>,
 }
 
+/// The struct to store, ComPacket's Identity field doesn't need to be stored, and data has its own dataset
 #[derive(H5Type,Serialize,Clone,Copy)]
 #[repr(C)]
 pub struct HDF5Packet {
     timestamp:f64,
     state:State,
 }
+
+/// Convert ComPacket to HDF5Packet
+impl From<&ComPacket> for HDF5Packet {
+    fn from(packet: &ComPacket) -> Self {
+        Self {
+            timestamp: packet.timestamp,
+            state: packet.state,
+        }
+    }
+}
+
+/// Helper functions for finding a specific time in a file or the data directory. 
+/// Once you have an ArchivedDataSource struct, this should be moved there
 impl HDF5Packet {
     #[expect(dead_code)] // I didn't get the chance to test this, remove once this code is tested
     pub fn find_index_in_file(timestamp:f64, file: File) -> Option<usize> {
@@ -130,15 +144,8 @@ impl HDF5Packet {
     }
 }
 
-impl From<&ComPacket> for HDF5Packet {
-    fn from(packet: &ComPacket) -> Self {
-        Self {
-            timestamp: packet.timestamp,
-            state: packet.state,
-        }
-    }
-}
 
+/// A struct representing a piece of SettingInfo
 #[skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SettingInfo {
@@ -150,6 +157,8 @@ pub struct SettingInfo {
     unit:Option<String>,
     values:Option<Vec<SettingInfo>>,
 }
+
+/// Generate setting info. This should probably be changed to be done at compile time.
 impl SettingInfo {
     pub fn get_archiver_settings() -> Vec<SettingInfo> {
         let mut vals = Vec::<SettingInfo>::new();
@@ -191,18 +200,13 @@ impl SettingInfo {
 /// An Hdf5Object can be stored and retrieved from an HDF5 file.
 pub trait Hdf5Object{
     /// Stores the object in the specified file.
-    ///
-    /// The object is stored in a group corresponding to its epoch time,
-    /// and a subgroup corresponding to its subsecond millisecond time.
     fn to_hdf5(&self, file:&mut File) -> hdf5_metno::Result<()>;
 
-    /// Retrieves an object from the specified file and group.
-    ///
-    /// Only retrieves an object from a group or fails, does not search for a specific object.
+    /// Retrieves an object from the specified file and index.
     fn from_hdf5(idx:usize, file: &File) -> hdf5_metno::Result<Self> where Self: Sized;
 }
 
-/// Implementation of HDF5Object for ComPacketIntComplex.
+/// Implementation of HDF5Object for ComPacket.
 impl Hdf5Object for ComPacket {
     fn to_hdf5(&self, file: &mut File) -> hdf5_metno::Result<()> {
         let timestamps = match file.dataset("timestamps") {

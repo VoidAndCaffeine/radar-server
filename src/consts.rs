@@ -16,4 +16,3 @@ pub static DATA_ARCHIVE_DIR: &str = ".local/share/radar-server/";
 pub static DATA_CHUNK_SIZE:usize = 1024;
 /// How many seconds of data to store in each file, defaults to one day
 pub static ARCHIVE_FILE_CHUNK_SIZE:i64 = 24 * 60 *60;
-

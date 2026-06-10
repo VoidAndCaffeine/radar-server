@@ -25,13 +25,13 @@ pub trait Subscriber {
     fn subscribe_check(&mut self) -> Option<ComPacket>;
 }
 
+/// A connection to communicate settings over
 pub trait SettingsChannel {
     fn new_router(ip:&str) -> Self;
     fn new_dealer(ip:&str) -> Self;
     fn send_settings(&mut self,dealer_id:&[u8], settings: SettingsPacket);
     fn check_settings(&mut self) -> Option<Vec<Vec<u8>>>;
 }
-
 
 impl Server for Connection {
     fn new_broadcast(ip:&str) -> Connection {

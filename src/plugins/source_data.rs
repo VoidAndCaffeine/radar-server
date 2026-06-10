@@ -8,6 +8,7 @@ use crate::plugins::radar_packet::*;
 #[allow(unused)]
 pub struct DummyData;
 
+/// A simple struct to sore info to calculate da/dt
 #[derive(Copy, Clone)]
 struct AntennaState {
     last_a: Option<f64>,
@@ -24,6 +25,8 @@ impl AntennaState {
             dt: 0.0,
         }
     }
+    /// In the data we were provided, the angle time and antenna values are all over the place,
+    ///  this makes sense of them. returning a da/dt value and setting dt to be used for the delay
     pub fn update(&mut self, angle: f64, time: f64) -> f64 {
         match self.last_a {
             None => {
@@ -68,6 +71,7 @@ impl AntennaState {
     }
 }
 
+/// A struct to contain demo data info.
 pub struct DemoData{
     pub manual_delay: bool,
     pub delay:u16,
@@ -84,6 +88,7 @@ pub struct DemoData{
 }
 
 impl DemoData{
+    /// Initialize DemoData
     pub fn new() -> DemoData{
         let file = File::open("demo/20260519_dabob_first.hdf5").expect("Failed to open demo file!");
         let angle_ds:Vec<f64> = file.dataset("angle").expect("Failed to open angle dataset")
@@ -124,6 +129,7 @@ impl DemoData{
             }
         }
     }
+    /// This would be used to demonstrate changing settings if the archiver were correctly forwarding them. ToDo: have the archiver forward settings
     pub fn update_state(&mut self, conf: SettingData){
         if conf.playback_delay.is_some() {
             let pd = conf.playback_delay.unwrap();
@@ -153,6 +159,7 @@ pub trait ComplexDataSource {
     }
 }
 
+/// This is a relic of before we were given data for DemoData
 impl ComplexDataSource for DummyData {
     fn source_complex_data(&mut self) -> ComPacket {
         let mut byte_vec: Vec<u8> = Vec::with_capacity(1024);
@@ -178,6 +185,7 @@ impl ComplexDataSource for DummyData {
     }
 }
 
+/// Pull data out of the data loaded into memory from the demo data file. Prepair it for send.
 impl ComplexDataSource for DemoData {
     fn source_complex_data(&mut self) -> ComPacket {
         let identity = Identity{
