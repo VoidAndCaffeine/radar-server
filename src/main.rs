@@ -6,7 +6,7 @@
 //!
 //! ### When running as a Server:
 //! - Source radar data from the radar hardware in such a way that adding support for new radar systems is easy.
-//! - Source simulated radar data from a random function.
+//! - Source simulated radar data from a random function and / or a sample file.
 //! - Send radar data to clients through a ZMQ Publisher Subscriber connection.
 //! - Listen as a ZMQ router, and adjust radar control commands from authorized clients.
 //!
@@ -18,46 +18,28 @@
 //! - Respond as a ZMQ router with archived data.
 //! - Listen as a ZMQ router and forward server commands as a dealer.
 //!
-//! ### When running as a Transformer:
-//! - Receive live or archived data from the Archiver as a ZMQ dealer.
-//! - Listen as a ZMQ router and forward server commands as a dealer.
-//! - Listen as a ZMQ router client requests.
-//! - Request the appropriate live or historical data from the archiver.
-//! - Transform the data if requested.
-//! - Send the potentially transformed, live or historical data to the client as a router.
-//!
 //! ## Current ToDos
-//! - Check if the Subscriber trait implementation actually needs to be a loop. (It probably doesn't)
-//! - Missing ZMQ Router Implementation.
-//! - Send live packets as Archiver. (Blocked by Missing ZMQ Router Implementation)
-//! - Archiver is not Multithreaded.
-//! - Send Archived packets as Archiver. (Blocked by Missing ZMQ Router Implementation and Archiver is not Multithreaded)
-//! - Figure out what the transformer actually does.
-//! - Implement Transform mode. (Blocked by Figure out what the transformer actually does)
-//! - Add `NUMSAMPLES` to the network spec
-//! - Move `NUMSAMPLES` in source_data into one of the radar_packet structs. (Blocked by Add `NUMSAMPLES` to the network spec)
+//! - Improve Archiver Performance, the data is copied a few times and I don't like that.
+//! - Fix radar control, decide if the client should ever be allowed to connect to the server, or if all communication should pass through the Archiver
 //! - Acquire hardware/hardware simulation
 //! - Source Real Server data. (Blocked by Acquire hardware/hardware simulation)
-//! - Finalize Radar Blanking Values. (Blocked by Acquire hardware/hardware simulation)
-//! - Implement Radar Control. (Blocked by Finalize Radar Blanking Values)
-//! - Finalize radar control security. (Blocked by Implement Radar Control)
-//! - Add cryptography data to radar_packet (Blocked by Finalize radar control security)
-//! - Implement radar control (Blocked by Add cryptography data to radar packet)
-//! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
+//! - Implement Radar Blanking. (Blocked by Acquire hardware/hardware simulation)
+//! - Implement radar control. security.
+//! - Finalize radar control (PBlocked by Implement radar control security)
+//! - Implement true Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
 use std::{env, fs, thread};
 use std::collections::HashSet;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration};
 use hdf5_metno::File;
-use crate::plugins::publish_data::*;
-use crate::consts::*;
 
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
 mod consts;
 
 use crate::plugins::radar_packet::*;
-use crate::plugins::radar_packet::NetType;
+use crate::plugins::publish_data::*;
 use crate::plugins::source_data::*;
+use crate::consts::*;
 
 
 /// Main handles argument parsing and calling the necessary submodules.
@@ -112,7 +94,9 @@ fn main() {
                 let message = settings_check.unwrap();
                 match serde_json::from_slice::<SettingsPacket>(message[1].as_slice()) {
                     Ok(p) => match p.controls {
-                        SettingType::SettingData(s) => { demo.update_state(s); }
+                        SettingType::SettingData(s) => {
+                            demo.update_state(s);
+                        }
                         _ => {}
                     }
                     _ => {}
@@ -139,8 +123,7 @@ fn main() {
         let mut data_path = dirs::home_dir().expect("Failed to get home directory");
         data_path.push(DATA_ARCHIVE_DIR);
         let mut file = File::open([DATA_ARCHIVE_DIR, "radar-data.h5"].concat()).unwrap_or_else(|_| {
-            fs::create_dir_all(data_path.to_str().unwrap()).expect("Failed to create data dir");
-            println!("Data Archive dir created.");
+            fs::create_dir_all(data_path.to_str().unwrap()).expect("Failed to create data dir"); // creates the data dir or does nothing
             File::create([data_path.to_str().unwrap(),"radar-data.h5"].concat()).expect("Couldn't create radar-data.h5 file")
         });
 
@@ -157,6 +140,7 @@ fn main() {
                             println!("Adding server {:?} to known servers.", message[0]);
                             servers.insert(message[0].clone());
                         }
+                        #[allow(unused)]
                         SettingType::SettingData(s) => {
                             for s_id in servers.clone(){
                                 settings_channel.send_settings(s_id.as_slice(),p.clone());
@@ -194,7 +178,7 @@ fn main() {
             if receive_packet.is_some() {
                 let p = receive_packet.unwrap();
                 p.to_hdf5(&mut file).expect("Failed to write packet");
-                let q = ComPacket::from_hdf5(idx,&file).expect("Failed to read packet");
+                ComPacket::from_hdf5(idx,&file).expect("Failed to read packet");
                 client.broadcast(p);
                 idx +=1;
             }
