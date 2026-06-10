@@ -1,8 +1,13 @@
 # radar-server
 server for the radar viewer controler senior project
 ## Dependancies
+install rustup
 install rust via rustup
-install cross:
+
+run with cargo on a system with glibc:
+`cargo run --`
+
+Or build with cross for systems without glibc:
 `cargo install cross`
 ### Building for x86\_64-unknown-linux
 `cross build --release`
