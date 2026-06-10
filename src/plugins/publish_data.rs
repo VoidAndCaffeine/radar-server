@@ -13,7 +13,7 @@ pub trait Server {
     /// Creates a new Dummy Server.
     fn new_broadcast(ip:&str) -> Self;
     /// Sends simulated radar data on a loop.
-    fn broadcast(&mut self,packet: &ComPacket );
+    fn broadcast(&mut self,packet: ComPacket );
 }
 
 /// A connection that subscribes to the specified ip.
@@ -40,8 +40,8 @@ impl Server for Connection {
         Connection {context, socket}
     }
 
-    fn broadcast(&mut self, packet: &ComPacket) {
-        let pak = to_vec_named(packet).expect("Could not serialize packet.");
+    fn broadcast(&mut self, packet: ComPacket) {
+        let pak = to_vec_named(&packet).expect("Could not serialize packet.");
         self.socket.send(pak,0).expect("Failed to send packet.");
     }
 }
