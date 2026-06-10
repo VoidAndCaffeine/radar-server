@@ -3,11 +3,6 @@ use bytemuck::bytes_of;
 use num_complex::Complex;
 use hdf5_metno::{File};
 use crate::plugins::radar_packet::*;
-use crate::consts::*;
-
-/// The number of data samples per packet
-///
-/// ToDo: this value should be dynamic, and probably in the radar data packet
 
 /// Organizational struct for DummyData.
 pub struct DummyData;
@@ -34,7 +29,7 @@ impl AntennaState {
                 self.last_a = Some(angle);
                 self.last_t = Some(time);
                 self.dt = 0.0;
-                5.0
+                4.2915
             }
             Some(prev_a) if angle == prev_a => {
                 if self.last_da_dt.is_some() {
@@ -42,7 +37,7 @@ impl AntennaState {
                     self.last_da_dt.unwrap()
                 }else {
                     self.dt = 0.0;
-                    5.0
+                    4.2915
                 }
             }
             Some(prev_a) => {
@@ -54,18 +49,18 @@ impl AntennaState {
                         self.last_a = Some(angle);
                         self.last_da_dt = Some(rate);
                         self.dt = dt;
-                        rate
+                        rate + 4.2915 / 2f64
                     } else {
                         self.last_a = None;
                         self.last_t = None;
                         self.dt = 0.0;
-                        5.0
+                        4.2915
                     }
                 } else {
                     self.last_a = None;
                     self.last_t = None;
                     self.dt = 0.0;
-                    5.0
+                    4.2915
                 }
             }
         }
@@ -84,7 +79,7 @@ pub struct DemoData{
     imag_ds:Vec<Vec<i32>>,
     enable_ds:Vec<f64>,
     time_ds:Vec<f64>,
-    state:State,
+    pub state:State,
 }
 
 impl DemoData{
@@ -123,7 +118,7 @@ impl DemoData{
                 angle: 0.0,
                 antenna: 0,
                 enabled: true,
-                samples: NUM_SAMPLES as u64,
+                samples: 1024u64,
                 rotation_rate: 0.0,
             }
         }
@@ -150,7 +145,7 @@ pub trait ComplexDataSource {
             angle: 0.0,
             antenna: 0,
             enabled: true,
-            samples: NUM_SAMPLES as u64,
+            samples:1024u64,
             rotation_rate: 0.0,
         }
     }
@@ -158,9 +153,9 @@ pub trait ComplexDataSource {
 
 impl ComplexDataSource for DummyData {
     fn source_complex_data(&mut self) -> ComPacket {
-        let mut byte_vec: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
+        let mut byte_vec: Vec<u8> = Vec::with_capacity(1024);
         print!("nums:[");
-        for _ in 0..NUM_SAMPLES {
+        for _ in 0..1024 {
             let c = Complex::new(fastrand::i32(i32::MIN..=i32::MAX),fastrand::i32(i32::MIN..=i32::MAX));
             print!("({}, {}), ",c.re,c.im);
             byte_vec.extend_from_slice(bytes_of(&c));
@@ -195,10 +190,10 @@ impl ComplexDataSource for DemoData {
         self.state.angle = angle;
         self.state.antenna = antenna as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
-        self.state.samples = NUM_SAMPLES as u64;
-        let mut data: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
+        self.state.samples = 1024u64;
+        let mut data: Vec<u8> = Vec::with_capacity(1024);
 
-        for i in (self.data_offset as usize * NUM_SAMPLES)..NUM_SAMPLES + (self.data_offset as usize * NUM_SAMPLES) {
+        for i in (self.data_offset as usize * 1024)..1024 + (self.data_offset as usize * 1024) {
             let noise = 25;
             let c =
                 Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
