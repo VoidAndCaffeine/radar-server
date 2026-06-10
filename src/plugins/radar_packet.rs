@@ -1,9 +1,8 @@
 use std::string::ToString;
-use bytemuck::{bytes_of, cast_slice, cast_vec, pod_collect_to_vec};
+use bytemuck::{cast_slice, pod_collect_to_vec};
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none, Bytes};
+use serde_with::{skip_serializing_none};
 use hdf5_metno::{Extent, File, H5Type};
-use ndarray::{Array1, Array2};
 use num_complex::Complex;
 use crate::plugins::radar_packet::NetType::Archiver;
 
@@ -66,6 +65,7 @@ pub struct ComPacket {
     pub(crate) identity:Identity,
     pub(crate) timestamp:f64,
     pub(crate) state:State,
+    #[serde(with = "serde_bytes")]
     pub(crate) data:Vec<u8>,
 }
 
