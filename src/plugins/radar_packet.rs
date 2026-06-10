@@ -1,10 +1,12 @@
+use std::cmp::Ordering;
+use std::fs;
 use std::string::ToString;
 use bytemuck::{cast_slice, pod_collect_to_vec};
 use serde::{Deserialize, Serialize};
 use serde_with::{skip_serializing_none};
 use hdf5_metno::{Extent, File, H5Type};
 use num_complex::Complex;
-use crate::consts::{DATA_CHUNK_SIZE};
+use crate::consts::{ARCHIVE_FILE_CHUNK_SIZE, DATA_ARCHIVE_DIR, DATA_CHUNK_SIZE};
 use crate::plugins::radar_packet::NetType::Archiver;
 
 /// Server binary version sourced from cargo at compile time.
@@ -75,6 +77,57 @@ pub struct ComPacket {
 pub struct HDF5Packet {
     timestamp:f64,
     state:State,
+}
+impl HDF5Packet {
+    #[expect(dead_code)] // I didn't get the chance to test this, remove once this code is tested
+    pub fn find_index_in_file(timestamp:f64, file: File) -> Option<usize> {
+        let timestamps_ds = match file.dataset("timestamps"){
+            Ok(ds) => ds,
+            Err(_) => return None,
+        };
+        let timestamps = match timestamps_ds.read_raw::<f64>(){
+            Ok(ts) => ts,
+            Err(_) => return None,
+        };
+
+        match timestamps.binary_search_by(|&ts| ts.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)) {
+            Ok(idx) => Some(idx), // exact match
+            Err(idx) => { // need to return nearest neighbor
+                if idx == 0 {
+                    Some(idx)
+                } else if idx == timestamps.len(){
+                    Some(idx-1)
+                } else {
+                    let previous_diff = (timestamp - timestamps[idx-1]).abs();
+                    let next_diff = (timestamps[idx] - timestamp).abs();
+                    if previous_diff <= next_diff {
+                        Some(idx-1)
+                    } else {
+                        Some(idx)
+                    }
+                }
+            }
+        }
+    }
+
+    #[expect(dead_code)] // I didn't get the chance to test this, remove once this code is tested
+    pub fn find_file_in_data_dir(timestamp:f64) -> File {
+        let mut data_path = dirs::home_dir().expect("Failed to get home directory");
+        data_path.push(DATA_ARCHIVE_DIR);
+        let epoch_secs = timestamp as i64;
+        let name = [
+            // dir
+            data_path.to_str().unwrap(),
+            // filename
+            (epoch_secs - (epoch_secs % ARCHIVE_FILE_CHUNK_SIZE)).to_string().as_str()
+            // extension
+            ,".h5"
+        ].concat();
+        File::open(&name).unwrap_or_else(|_| {
+            fs::create_dir_all(data_path.to_str().unwrap()).expect("Failed to create data dir"); // creates the data dir or does nothing
+            File::create(&name).expect("Couldn't create radar-data.h5 file")
+        })
+    }
 }
 
 impl From<&ComPacket> for HDF5Packet {
