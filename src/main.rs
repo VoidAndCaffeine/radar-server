@@ -44,25 +44,21 @@
 //! - Add cryptography data to radar_packet (Blocked by Finalize radar control security)
 //! - Implement radar control (Blocked by Add cryptography data to radar packet)
 //! - Implement Server mode. (Blocked by Sourcing Real Server Data and Implement radar control)
-use std::{env, thread};
+use std::{env, fs, thread};
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
-use serde_json::Value;
 use crate::plugins::publish_data::*;
+use crate::r#const::*;
 
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
+mod r#const;
+
 use crate::plugins::radar_packet::*;
 use crate::plugins::radar_packet::NetType;
 use crate::plugins::source_data::*;
 
-static CLIENT_PORT: &str = "5555";
-static CONTROL_PORT: &str = "5556";
-static RADAR_PORT: &str = "5557";
-static RADAR_ADDRESS: &str = "tcp://localhost:";
-static WORLD_ADDRESS: &str = "tcp://*:";
-static ARCHIVER_ADDRESS: &str = "tcp://localhost:";
 
 /// Main handles argument parsing and calling the necessary submodules.
 fn main() {
@@ -109,7 +105,8 @@ fn main() {
                 identity: identity.clone(),
                 controls: SettingType::SettingInfo(SettingInfo::get_server_settings()),
             });
-        loop {
+        let mut i = 0;
+        while i < 200 {
             settings_check = settings_channel.check_settings();
             if settings_check.is_some() {
                 let message = settings_check.unwrap();
@@ -121,9 +118,9 @@ fn main() {
                     _ => {}
                 }
             }
-            let p = demo.source_complex_data();
-            server.broadcast(&p);
-            thread::sleep(Duration::from_millis(demo.delay as u64 + 100));
+            server.broadcast(demo.source_complex_data());
+            thread::sleep(Duration::from_millis(demo.delay as u64));
+            i-=1;
         }
     }
 
@@ -139,7 +136,15 @@ fn main() {
         let mut servers = HashSet::new();
         let mut settings_check;
         let mut setting_info = SettingInfo::get_archiver_settings();
+        let mut data_path = dirs::home_dir().expect("Failed to get home directory");
+        data_path.push(DATA_ARCHIVE_DIR);
+        let mut file = File::open([DATA_ARCHIVE_DIR, "radar-data.h5"].concat()).unwrap_or_else(|_| {
+            fs::create_dir_all(data_path.to_str().unwrap()).expect("Failed to create data dir");
+            println!("Data Archive dir created.");
+            File::create([data_path.to_str().unwrap(),"radar-data.h5"].concat()).expect("Couldn't create radar-data.h5 file")
+        });
 
+        let mut idx = 0;
         loop {
             settings_check = settings_channel.check_settings();
             if settings_check.is_some() {
@@ -187,7 +192,11 @@ fn main() {
             }
             let receive_packet = subscription.subscribe_check();
             if receive_packet.is_some() {
-                client.broadcast(&receive_packet.unwrap());
+                let p = receive_packet.unwrap();
+                p.to_hdf5(&mut file).expect("Failed to write packet");
+                let q = ComPacket::from_hdf5(idx,&file).expect("Failed to read packet");
+                client.broadcast(p);
+                idx +=1;
             }
         }
     }
