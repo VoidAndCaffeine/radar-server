@@ -34,7 +34,7 @@ jobs:
     name: Deploy
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}/radar_server
     runs-on: ubuntu-latest
     needs: build
     steps:
