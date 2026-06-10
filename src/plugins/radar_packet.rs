@@ -1,8 +1,11 @@
 use std::string::ToString;
-use std::time::SystemTime;
+use bytemuck::{bytes_of, cast_slice, cast_vec, pod_collect_to_vec};
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
-use hdf5_metno::{File, H5Type};
+use serde_with::{serde_as, skip_serializing_none, Bytes};
+use hdf5_metno::{Extent, File, H5Type};
+use ndarray::{Array1, Array2};
+use num_complex::Complex;
+use crate::plugins::radar_packet::NetType::Archiver;
 
 /// Server binary version sourced from cargo at compile time.
 pub static VERSION:&str = env!("CARGO_PKG_VERSION");
@@ -41,17 +44,6 @@ pub struct State {
     pub(crate) rotation_rate:f64,
 }
 
-/// The radar data packet for use with dummy complex i16 data.
-///
-/// Contains an identity, time of recording, state, and the data vector.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ComPacket {
-    pub(crate) identity:Identity,
-    pub(crate) timestamp:f64,
-    pub(crate) state:State,
-    #[serde(with="serde_bytes")]
-    pub(crate) data:Vec<u8>,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SettingData {
@@ -66,6 +58,32 @@ pub struct SettingsPacket {
     pub(crate) identity:Identity,
     pub(crate) controls:SettingType,
 }
+/// The radar data packet for use with dummy complex i16 data.
+///
+/// Contains an identity, time of recording, state, and the data vector.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ComPacket {
+    pub(crate) identity:Identity,
+    pub(crate) timestamp:f64,
+    pub(crate) state:State,
+    pub(crate) data:Vec<u8>,
+}
+
+#[derive(H5Type,Serialize,Clone,Copy)]
+#[repr(C)]
+struct HDF5Packet {
+    timestamp:f64,
+    state:State,
+}
+
+impl From<&ComPacket> for HDF5Packet {
+    fn from(packet: &ComPacket) -> Self {
+        Self {
+            timestamp: packet.timestamp,
+            state: packet.state,
+        }
+    }
+}
 
 #[skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -78,7 +96,6 @@ pub struct SettingInfo {
     unit:Option<String>,
     values:Option<Vec<SettingInfo>>,
 }
-
 impl SettingInfo {
     pub fn get_archiver_settings() -> Vec<SettingInfo> {
         let mut vals = Vec::<SettingInfo>::new();
@@ -123,21 +140,84 @@ pub trait Hdf5Object{
     ///
     /// The object is stored in a group corresponding to its epoch time,
     /// and a subgroup corresponding to its subsecond millisecond time.
-    fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()>;
+    fn to_hdf5(&self, file:&mut File) -> hdf5_metno::Result<()>;
 
     /// Retrieves an object from the specified file and group.
     ///
     /// Only retrieves an object from a group or fails, does not search for a specific object.
-    fn from_hdf5() -> hdf5_metno::Result<Self> where Self: Sized;
+    fn from_hdf5(idx:usize, file: &File) -> hdf5_metno::Result<Self> where Self: Sized;
 }
 
 /// Implementation of HDF5Object for ComPacketIntComplex.
 impl Hdf5Object for ComPacket {
-    fn to_hdf5(&self, file: &File) -> hdf5_metno::Result<()> {
-        todo!()
+    fn to_hdf5(&self, file: &mut File) -> hdf5_metno::Result<()> {
+        let timestamps = match file.dataset("timestamps") {
+            Ok(ds) => ds,
+            Err(_) => {
+                println!("creating new timestamps dataset");
+                file.new_dataset::<f64>()
+                    .chunk((1,))
+                    .shape(Extent::resizable(0))
+                    .create("timestamps").expect("failed to create new dataset for timestamps")
+            }
+        };
+
+        let metadata = match file.dataset("metadata") {
+            Ok(ds) => ds,
+            Err(_) => {
+                println!("creating new metadata dataset");
+                file.new_dataset::<HDF5Packet>()
+                    .chunk((1,))
+                    .shape(Extent::resizable(0))
+                    .create("metadata").expect("failed to create new dataset for timestamps")
+            }
+        };
+
+        let data = match file.dataset("data") {
+            Ok(ds) => ds,
+            Err(_) => {
+                println!("creating new data dataset");
+                file.new_dataset::<Complex<i32>>()
+                    .chunk((1,2048))
+                    .shape((1..,2048))
+                    .create("data").expect("failed to create new dataset for timestamps")
+            }
+        };
+
+        let ds:&[Complex<i32>] = cast_slice(self.data.as_slice());
+
+        let idx = timestamps.size();
+        timestamps.resize(idx + 1)?;
+        metadata.resize(idx + 1)?;
+        data.resize((idx+1,2048))?;
+        timestamps.write_slice(&[self.timestamp],idx..idx+1)?;
+        metadata.write_slice(&[HDF5Packet::from(self)],idx..idx+1)?;
+        data.write_slice(ds, (idx,..))?;
+        file.flush()?;
+        Ok(())
     }
 
-    fn from_hdf5() -> hdf5_metno::Result<Self> {
-        todo!()
+    fn from_hdf5(idx:usize,file: &File) -> hdf5_metno::Result<Self> {
+        let metadata = match file.dataset("metadata") {
+            Ok(ds) => ds,
+            Err(e) => return Err(e),
+        };
+
+        let data = match file.dataset("data") {
+            Ok(ds) => ds,
+            Err(e) => return Err(e)
+        };
+        let meta:HDF5Packet = metadata.read_slice((idx..)).expect("Failed to read metadata").to_vec()[0];
+        let data:Vec<Complex<i32>> = data.read_slice((idx,..)).expect("failed to read data").to_vec();
+
+        Ok(ComPacket{
+            identity:Identity{
+                net_type:Archiver,
+                version: VERSION.to_string()
+            },
+            timestamp: meta.timestamp,
+            state:meta.state,
+            data:pod_collect_to_vec(data.as_slice())
+        })
     }
 }
