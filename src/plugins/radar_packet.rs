@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{skip_serializing_none};
 use hdf5_metno::{Extent, File, H5Type};
 use num_complex::Complex;
+use crate::consts::NUM_SAMPLES;
 use crate::plugins::radar_packet::NetType::Archiver;
 
 /// Server binary version sourced from cargo at compile time.
@@ -178,8 +179,8 @@ impl Hdf5Object for ComPacket {
             Err(_) => {
                 println!("creating new data dataset");
                 file.new_dataset::<Complex<i32>>()
-                    .chunk((1,2048))
-                    .shape((1..,2048))
+                    .chunk((1,NUM_SAMPLES))
+                    .shape((1..,NUM_SAMPLES))
                     .create("data").expect("failed to create new dataset for timestamps")
             }
         };
@@ -189,7 +190,7 @@ impl Hdf5Object for ComPacket {
         let idx = timestamps.size();
         timestamps.resize(idx + 1)?;
         metadata.resize(idx + 1)?;
-        data.resize((idx+1,2048))?;
+        data.resize((idx+1,NUM_SAMPLES))?;
         timestamps.write_slice(&[self.timestamp],idx..idx+1)?;
         metadata.write_slice(&[HDF5Packet::from(self)],idx..idx+1)?;
         data.write_slice(ds, (idx,..))?;

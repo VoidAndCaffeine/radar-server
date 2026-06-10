@@ -49,11 +49,11 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use hdf5_metno::File;
 use crate::plugins::publish_data::*;
-use crate::r#const::*;
+use crate::consts::*;
 
 /// The plugins module contains all logic and datastructure submodules
 mod plugins;
-mod r#const;
+mod consts;
 
 use crate::plugins::radar_packet::*;
 use crate::plugins::radar_packet::NetType;

@@ -3,11 +3,11 @@ use bytemuck::bytes_of;
 use num_complex::Complex;
 use hdf5_metno::{File};
 use crate::plugins::radar_packet::*;
+use crate::consts::*;
 
 /// The number of data samples per packet
 ///
 /// ToDo: this value should be dynamic, and probably in the radar data packet
-pub static NUM_SAMPLES:usize = 1000;
 
 /// Organizational struct for DummyData.
 pub struct DummyData;
@@ -76,6 +76,7 @@ pub struct DemoData{
     pub manual_delay: bool,
     pub delay:u16,
     idx:usize,
+    data_offset:u8,
     antenna_state: [AntennaState; 4],
     angle_ds: Vec<f64>,
     antenna_ds: Vec<f64>,
@@ -110,6 +111,7 @@ impl DemoData{
             manual_delay: false,
             delay: 0,
             idx:0,
+            data_offset:0,
             antenna_state: [AntennaState::new(),AntennaState::new(),AntennaState::new(),AntennaState::new()],
             angle_ds,
             antenna_ds,
@@ -187,23 +189,23 @@ impl ComplexDataSource for DemoData {
         };
         let timestamp = self.time_ds[self.idx];
         let angle = self.angle_ds[self.idx];
-        let samples =self.real_ds[self.idx].len() as u64;
         let antenna = self.antenna_ds[self.idx] as usize;
 
         self.state.rotation_rate = self.antenna_state[antenna].update(angle, timestamp);
         self.state.angle = angle;
         self.state.antenna = antenna as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
-        self.state.samples = samples;
-        let mut data: Vec<u8> = Vec::with_capacity(samples as usize);
+        self.state.samples = NUM_SAMPLES as u64;
+        let mut data: Vec<u8> = Vec::with_capacity(NUM_SAMPLES);
 
-        for i in 0..samples as usize {
+        for i in (self.data_offset as usize * NUM_SAMPLES)..NUM_SAMPLES + (self.data_offset as usize * NUM_SAMPLES) {
             let noise = 25;
             let c =
                 Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
                     //+ Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
             data.extend_from_slice(bytes_of(&c));
         }
+        self.data_offset = (self.data_offset + 1) % 2;
 
         if !self.manual_delay {self.delay = Duration::from_secs_f64(self.antenna_state[antenna].dt).as_millis() as u16;}
 

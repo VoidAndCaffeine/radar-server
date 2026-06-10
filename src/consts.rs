@@ -5,3 +5,4 @@ pub static RADAR_ADDRESS: &str = "tcp://localhost:";
 pub static WORLD_ADDRESS: &str = "tcp://*:";
 pub static ARCHIVER_ADDRESS: &str = "tcp://localhost:";
 pub static DATA_ARCHIVE_DIR: &str = ".local/share/radar-server/";
+pub static NUM_SAMPLES:usize = 1024;
