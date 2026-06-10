@@ -1,5 +1,5 @@
 [target.aarch64-unknown-linux-musl]
-image = "aarch64-unknown-linux-musl:edge"
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:edge"
 [build]
 default-target = "x86_64-unknown-linux-musl"
 pre-build = [
@@ -7,4 +7,3 @@ pre-build = [
 	"DEBIAN_FRONTEND=noninteractive apt-get install -y pip",
 	"pip install cmake"
 ]
-
