@@ -1,5 +1,5 @@
-use std::io::repeat;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use bytemuck::bytes_of;
 use num_complex::Complex;
 use hdf5_metno::{File};
 use crate::plugins::radar_packet::*;
@@ -12,16 +12,71 @@ pub static NUM_SAMPLES:usize = 1000;
 /// Organizational struct for DummyData.
 pub struct DummyData;
 
+#[derive(Copy, Clone)]
+struct AntennaState {
+    last_a: Option<f64>,
+    last_t: Option<f64>,
+    last_da_dt: Option<f64>,
+    dt: f64,
+}
+impl AntennaState {
+    pub fn new() -> AntennaState {
+        AntennaState {
+            last_a: None,
+            last_t: None,
+            last_da_dt: None,
+            dt: 0.0,
+        }
+    }
+    pub fn update(&mut self, angle: f64, time: f64) -> f64 {
+        match self.last_a {
+            None => {
+                self.last_a = Some(angle);
+                self.last_t = Some(time);
+                self.dt = 0.0;
+                5.0
+            }
+            Some(prev_a) if angle == prev_a => {
+                if self.last_da_dt.is_some() {
+                    self.dt = 0.0;
+                    self.last_da_dt.unwrap()
+                }else {
+                    self.dt = 0.0;
+                    5.0
+                }
+            }
+            Some(prev_a) => {
+                if let Some(prev_t) = self.last_t{
+                    let dt = time - prev_t;
+                    if dt > 0.0 {
+                        let rate = (angle - prev_a) / dt;
+                        self.last_t = Some(time);
+                        self.last_a = Some(angle);
+                        self.last_da_dt = Some(rate);
+                        self.dt = dt;
+                        rate
+                    } else {
+                        self.last_a = None;
+                        self.last_t = None;
+                        self.dt = 0.0;
+                        5.0
+                    }
+                } else {
+                    self.last_a = None;
+                    self.last_t = None;
+                    self.dt = 0.0;
+                    5.0
+                }
+            }
+        }
+    }
+}
+
 pub struct DemoData{
     pub manual_delay: bool,
     pub delay:u16,
     idx:usize,
-    idx_ln:usize,
-    idx_a0:usize,
-    idx_a1:usize,
-    idx_a2:usize,
-    idx_a3:usize,
-    last_dt:f64,
+    antenna_state: [AntennaState; 4],
     angle_ds: Vec<f64>,
     antenna_ds: Vec<f64>,
     real_ds:Vec<Vec<i32>>,
@@ -52,15 +107,10 @@ impl DemoData{
             panic!("Invalid data length!");
         }
         DemoData{
-            manual_delay: true,
-            delay: 100,
+            manual_delay: false,
+            delay: 0,
             idx:0,
-            idx_ln:0,
-            idx_a0:0,
-            idx_a1:32,
-            idx_a2:64,
-            idx_a3:96,
-            last_dt:0.0,
+            antenna_state: [AntennaState::new(),AntennaState::new(),AntennaState::new(),AntennaState::new()],
             angle_ds,
             antenna_ds,
             real_ds,
@@ -111,8 +161,7 @@ impl ComplexDataSource for DummyData {
         for _ in 0..NUM_SAMPLES {
             let c = Complex::new(fastrand::i32(i32::MIN..=i32::MAX),fastrand::i32(i32::MIN..=i32::MAX));
             print!("({}, {}), ",c.re,c.im);
-            byte_vec.extend_from_slice(&c.re.to_le_bytes());
-            byte_vec.extend_from_slice(&c.im.to_le_bytes());
+            byte_vec.extend_from_slice(bytes_of(&c));
         }
         print!("]\n");
 
@@ -139,62 +188,26 @@ impl ComplexDataSource for DemoData {
         let timestamp = self.time_ds[self.idx];
         let angle = self.angle_ds[self.idx];
         let samples =self.real_ds[self.idx].len() as u64;
+        let antenna = self.antenna_ds[self.idx] as usize;
 
-        self.state.rotation_rate = 5.0;
+        self.state.rotation_rate = self.antenna_state[antenna].update(angle, timestamp);
         self.state.angle = angle;
-        self.state.antenna = self.antenna_ds[self.idx] as u8;
+        self.state.antenna = antenna as u8;
         self.state.enabled = self.enable_ds[self.idx] as u8 != 0;
         self.state.samples = samples;
         let mut data: Vec<u8> = Vec::with_capacity(samples as usize);
 
-        let mut ii = 0;
-        println!();
-        while self.idx + ii < self.real_ds.len() && self.antenna_ds[self.idx + ii] == self.antenna_ds[self.idx] {
-            for i in 0..samples as usize {
-                let noise = 25;
-                let c =
-                    Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i])
-                        + Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
-                data.extend_from_slice(&c.re.to_le_bytes());
-                data.extend_from_slice(&c.im.to_le_bytes());
-                print!("{}",c);
-            }
-            ii += 1;
-        }
-        println!();
-
-        if !self.manual_delay {self.delay = Duration::from_secs_f64(0.16).as_millis() as u16;}
-        let ant1 = self.antenna_ds[self.idx] as u8;
-        if (ant1 == 0) {
-            self.idx_a0 = self.idx;
-        }
-        if (ant1 == 1) {
-            self.idx_a1 = self.idx;
-        }
-        if (ant1 == 2) {
-            self.idx_a2 = self.idx;
-        }
-        if (ant1 == 3) {
-            self.idx_a3 = self.idx;
-        }
-        let ant2 = self.antenna_ds[self.idx + ii] as u8;
-        if (ant2 == 0) {
-            self.idx_ln = self.idx_a0;
-        }
-        if (ant2 == 1) {
-            self.idx_ln = self.idx_a1;
-        }
-        if (ant2 == 2) {
-            self.idx_ln = self.idx_a2;
-        }
-        if (ant2 == 3) {
-            self.idx_ln = self.idx_a3;
+        for i in 0..samples as usize {
+            let noise = 25;
+            let c =
+                Complex::new(self.real_ds[self.idx][i], self.imag_ds[self.idx][i]);
+                    //+ Complex::new(fastrand::i32(-noise..=noise), fastrand::i32(-noise..=noise));
+            data.extend_from_slice(bytes_of(&c));
         }
 
-        self.idx = (self.idx + ii) % self.real_ds.len();
-        if self.idx == 0 {
-            println!("repeat");
-        }
+        if !self.manual_delay {self.delay = Duration::from_secs_f64(self.antenna_state[antenna].dt).as_millis() as u16;}
+
+        self.idx = (self.idx + 1) % self.real_ds.len();
         ComPacket{identity,timestamp,state:self.state,data}
     }
 }
