@@ -1,9 +1,12 @@
 # radar-server
 Server for Western Washington University's 2026 Radar Viewer Controler senior project.
-### Client
+### Project Client
 - John Mower
-### Server by:
+### Radar Server by:
 - Miska Alexia
+### ZMQGraph Client by:
+- Nathan Sexton
+- Brian Rink
 
 ## Documentation
 Documentation can be found at:
