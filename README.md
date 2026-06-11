@@ -1,5 +1,10 @@
 # radar-server
-server for the radar viewer controler senior project
+Server for Western Washington University's 2026 Radar Viewer Controler senior project.
+### Client
+- John Mower
+### Server by:
+- Miska Alexia
+
 ## Documentation
 Documentation can be found at:
 https://voidandcaffeine.github.io/radar-server/radar_server/
