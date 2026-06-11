@@ -1,5 +1,9 @@
 # radar-server
 server for the radar viewer controler senior project
+## Documentation
+Documentation can be found at:
+https://voidandcaffeine.github.io/radar-server/radar_server/
+
 ## Dependancies
 install rustup
 install rust via rustup
